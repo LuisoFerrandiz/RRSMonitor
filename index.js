@@ -1843,8 +1843,16 @@ function changedFields(before, after) {
     .map((field) => `${field}: "${before[field] || "-"}" -> "${after[field] || "-"}"`);
 }
 
-function formatTelegramMessage(changes, timeLimitChanges, documentChanges, timestamp) {
-  const lines = [`RRS cambios detectados`, `Fecha: ${timestamp}`, ""];
+function formatTelegramMessage(
+  changes,
+  timeLimitChanges,
+  documentChanges,
+  timestamp,
+  baseline
+) {
+  const isBaseline = Boolean(baseline);
+  const header = isBaseline ? "RRS inicio del sistema" : "RRS cambios detectados";
+  const lines = [header, `Fecha: ${timestamp}`, ""];
 
   const tl = timeLimitChanges || {
     added: [],
@@ -2129,18 +2137,17 @@ async function runMonitorCycle() {
       `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length}`
     );
 
-    if (previousState) {
-      const message = formatTelegramMessage(
-        changes,
-        timeLimitChanges,
-        documentChanges,
-        timestamp
-      );
-      try {
-        await sendTelegramNotification(message);
-      } catch (error) {
-        console.error("[TELEGRAM]", error.message);
-      }
+    const message = formatTelegramMessage(
+      changes,
+      timeLimitChanges,
+      documentChanges,
+      timestamp,
+      !previousState
+    );
+    try {
+      await sendTelegramNotification(message);
+    } catch (error) {
+      console.error("[TELEGRAM]", error.message);
     }
   } else if (previousState) {
     console.log(
