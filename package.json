@@ -1,0 +1,20 @@
+{
+  "name": "script_rrs",
+  "version": "1.0.0",
+  "description": "Monitor de tabla RRS con historico JSON y alertas de cambios",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "once": "node index.js --once"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cheerio": "^1.0.0-rc.12",
+    "dotenv": "^17.4.2"
+  }
+}
