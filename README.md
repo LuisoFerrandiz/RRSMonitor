@@ -32,7 +32,9 @@ Ejemplo de URL de calendario:
 
 ---
 
-## 3. Archivos de salida (`DATA_DIR`, por defecto `./data`)
+## 3. Archivos de salida (`DATA_DIR`, por defecto `data/` junto a `index.js`)
+
+- **Timestamps** en `state.json`, `history.jsonl`, `changes.jsonl`, consola y Telegram usan la zona **`Europe/Madrid`** (CET/CEST con offset `+01:00` / `+02:00` en el string). Opcional: define `REPORT_TIME_ZONE` en `.env` con cualquier [zona IANA](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
 - **`state.json`** — Último snapshot: `rows`, `timeLimitRows`, `documentRows`, mapas `trelloCards`, `trelloTimeLimitCards`, `trelloDocumentCards`, `hearingAttachmentUrlsByCase` (URLs ya enlazadas bajo *Type*), `fullDecisionSyncedByCase` (URL del PDF *Full Decision* ya tratada por caso), etc.
 - **`history.jsonl`** — Una línea JSON por ciclo (snapshots completos).

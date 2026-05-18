@@ -1,8 +1,78 @@
-require("dotenv").config();
+const path = require("path");
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const fs = require("fs/promises");
-const path = require("path");
 const cheerio = require("cheerio");
+
+/** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
+const resolvedDataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, "data");
+
+/** Zona IANA para `timestamp` en JSON / consola / Telegram (RFC3339 con offset CET/CEST). */
+const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE || "Europe/Madrid";
+
+function padTimePart(value) {
+  return String(value ?? "").padStart(2, "0");
+}
+
+function zonedOffsetRFC(instant, timeZone) {
+  try {
+    const part =
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone,
+        timeZoneName: "longOffset",
+      })
+        .formatToParts(instant)
+        .find((x) => x.type === "timeZoneName")?.value || "";
+    const m = part.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/i);
+    if (!m) return "";
+    const sign = m[1];
+    const hh = padTimePart(parseInt(m[2], 10));
+    const mm = padTimePart(parseInt(m[3] ?? "0", 10));
+    return `${sign}${hh}:${mm}`;
+  } catch {
+    return "";
+  }
+}
+
+function formatReportTimestamp(now = new Date()) {
+  const d = now instanceof Date ? now : new Date(now);
+  const tz = REPORT_TIME_ZONE;
+  let formatter;
+  try {
+    formatter = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+      fractionalSecondDigits: 3,
+    });
+  } catch {
+    return d.toISOString();
+  }
+  const fields = {};
+  for (const { type, value } of formatter.formatToParts(d)) {
+    if (type !== "literal") fields[type] = value;
+  }
+  const { year, month, day, hour, minute, second, fractionalSecond } = fields;
+  if (!year) {
+    return d.toISOString();
+  }
+  let fracMs = fractionalSecond || "000";
+  if (/^\d+$/.test(fracMs)) {
+    fracMs = fracMs.length > 3 ? fracMs.slice(0, 3) : fracMs.padEnd(3, "0");
+  } else {
+    fracMs = "000";
+  }
+  const body = `${year}-${padTimePart(month)}-${padTimePart(day)}T${padTimePart(hour)}:${padTimePart(minute)}:${padTimePart(second)}.${fracMs}`;
+  const off = zonedOffsetRFC(d, tz);
+  return off ? `${body}${off}` : `${body} [${tz}]`;
+}
 
 function normalize(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
@@ -102,10 +172,10 @@ const CONFIG = {
   documentsUrl: documentsFromEnv || rrsDocumentsFromId,
   decisionsUrl: decisionsFromEnv || rrsDecisionsFromId,
   intervalMs: Number(process.env.POLL_INTERVAL_MS || 60_000),
-  dataDir: path.resolve(process.env.DATA_DIR || "./data"),
-  stateFile: path.resolve(process.env.DATA_DIR || "./data", "state.json"),
-  historyFile: path.resolve(process.env.DATA_DIR || "./data", "history.jsonl"),
-  changesFile: path.resolve(process.env.DATA_DIR || "./data", "changes.jsonl"),
+  dataDir: resolvedDataDir,
+  stateFile: path.join(resolvedDataDir, "state.json"),
+  historyFile: path.join(resolvedDataDir, "history.jsonl"),
+  changesFile: path.join(resolvedDataDir, "changes.jsonl"),
   telegramEnabled: process.env.TELEGRAM_ENABLED === "true",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
@@ -2010,7 +2080,7 @@ async function sendTelegramNotification(message) {
 }
 
 async function runMonitorCycle() {
-  const timestamp = new Date().toISOString();
+  const timestamp = formatReportTimestamp();
   const html = await fetchHtml(CONFIG.url);
   const currentRows = extractTableRows(html);
   const currentTimeLimits = extractTimeLimitRows(html);
