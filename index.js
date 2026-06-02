@@ -165,16 +165,21 @@ const rrsDecisionsFromId = rrsEventId
 const urlFromEnv = expandRrsUrlTemplate(process.env.RRS_URL, rrsEventId);
 const documentsFromEnv = expandRrsUrlTemplate(process.env.RRS_DOCUMENTS_URL, rrsEventId);
 const decisionsFromEnv = expandRrsUrlTemplate(process.env.RRS_DECISIONS_URL || "", rrsEventId);
+const questionsFromEnv = expandRrsUrlTemplate(process.env.RRS_QUESTIONS_URL || "", rrsEventId);
 
 const CONFIG = {
   eventId: rrsEventId || null,
   url: urlFromEnv || rrsSchedulesFromId,
   documentsUrl: documentsFromEnv || rrsDocumentsFromId,
   decisionsUrl: decisionsFromEnv || rrsDecisionsFromId,
+  questionsUrl: questionsFromEnv || (rrsEventId ? `${RRS_ORIGIN}/questions/${rrsEventId}/event` : ""),
   intervalMs: Number(process.env.POLL_INTERVAL_MS || 60_000),
   dataDir: resolvedDataDir,
   stateFile: path.join(resolvedDataDir, "state.json"),
   historyFile: path.join(resolvedDataDir, "history.jsonl"),
+  historyTmpFile: path.join(resolvedDataDir, "history.tmp.jsonl"),
+  historyLastFlushFile: path.join(resolvedDataDir, "history-last-flush.json"),
+  historyFlushIntervalMs: 30 * 60 * 1000,
   changesFile: path.join(resolvedDataDir, "changes.jsonl"),
   telegramEnabled: process.env.TELEGRAM_ENABLED === "true",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
@@ -189,6 +194,7 @@ const CONFIG = {
   trelloTimelimitListId: process.env.TRELLO_TIMELIMIT_LIST_ID || "",
   /** Lista TOA-Documents (Event Documents en la web RRS) */
   trelloToaDocumentsListId: process.env.TRELLO_TOA_DOCUMENTS_LIST_ID || "",
+  trelloQuestionsListId: process.env.TRELLO_QUESTIONS_LIST_ID || "",
 };
 
 /** Identidad estable: fecha+clase mantienen la misma tarjeta aunque cambie hora/restante */
@@ -222,6 +228,8 @@ const HEARING_TYPE_TRELLO_LABEL_NAMES = [
   "Protest by TC",
   "Request to Reopen",
   "Request for Redress",
+  "Race Committee",
+  "Technical Committee",
 ];
 
 function hearingTypeToLabelName(type) {
@@ -429,6 +437,98 @@ function extractEventDocumentRows(html) {
   return rows;
 }
 
+function extractQuestionsRows(html) {
+  const $ = cheerio.load(html);
+  const rows = [];
+  $("table").each((_, table) => {
+    const headerCells = $(table)
+      .find("thead tr th")
+      .map((__, th) => normalize($(th).text()).toLowerCase())
+      .get();
+
+    if (headerCells.includes("no.") && headerCells.includes("regarding")) {
+      $(table)
+        .find("tbody tr")
+        .each((___, tr) => {
+          const $tds = $(tr).find("td");
+          if ($tds.length < 6) return;
+
+          const no = normalize($tds.eq(0).text());
+          const competitor = normalize($tds.eq(1).text());
+          const forWhom = normalize($tds.eq(2).text());
+          const regarding = normalize($tds.eq(3).text());
+          const state = normalize($tds.eq(4).text());
+          const answered = normalize($tds.eq(5).text());
+          // Buscamos el link de PDF por el título o por el icono fa-file-pdf-o
+          const $pdfLink = $tds.find('a[title*="PDF"], a:has(i.fa-file-pdf-o)');
+          const pdfHref = normalize($pdfLink.attr("href"));
+
+          if (!no) return;
+
+          rows.push({
+            no,
+            competitor,
+            forWhom,
+            regarding,
+            state,
+            answered,
+            pdfUrl: pdfHref ? absolutizeRrsHref(pdfHref) : "",
+          });
+        });
+    }
+  });
+  return rows;
+}
+
+function questionRowKey(row) {
+  return normalize(row.no);
+}
+
+function questionFingerprint(row) {
+  return [
+    row.no,
+    row.competitor,
+    row.forWhom,
+    row.regarding,
+    row.state,
+    row.answered,
+    row.pdfUrl,
+  ].join("||");
+}
+
+function detectQuestionsChanges(previousRows, currentRows) {
+  const previousMap = new Map(previousRows.map((row) => [questionRowKey(row), row]));
+  const currentMap = new Map(currentRows.map((row) => [questionRowKey(row), row]));
+
+  const added = [];
+  const modified = [];
+  const removed = [];
+
+  for (const [key, currentRow] of currentMap.entries()) {
+    const prevRow = previousMap.get(key);
+    if (!prevRow) {
+      added.push(currentRow);
+      continue;
+    }
+
+    if (questionFingerprint(prevRow) !== questionFingerprint(currentRow)) {
+      modified.push({
+        key,
+        before: prevRow,
+        after: currentRow,
+      });
+    }
+  }
+
+  for (const [key, prevRow] of previousMap.entries()) {
+    if (!currentMap.has(key)) {
+      removed.push(prevRow);
+    }
+  }
+
+  return { added, modified, removed };
+}
+
 function documentRowKey(row) {
   return normalize(row.rowId);
 }
@@ -495,9 +595,44 @@ async function appendJsonLine(filePath, payload) {
   await fs.appendFile(filePath, line, "utf8");
 }
 
+async function appendHistoryBuffered(payload) {
+  const line = `${JSON.stringify(payload)}\n`;
+  await fs.appendFile(CONFIG.historyTmpFile, line, "utf8");
+
+  const now = Date.now();
+  let lastFlush = 0;
+  try {
+    const data = await fs.readFile(CONFIG.historyLastFlushFile, "utf8");
+    if (data && data.trim()) {
+      lastFlush = JSON.parse(data).lastFlush || 0;
+    }
+  } catch (e) {
+    await fs.writeFile(CONFIG.historyLastFlushFile, JSON.stringify({ lastFlush: now }), "utf8");
+    return;
+  }
+
+  if (now - lastFlush >= CONFIG.historyFlushIntervalMs) {
+    await flushHistory();
+    await fs.writeFile(CONFIG.historyLastFlushFile, JSON.stringify({ lastFlush: now }), "utf8");
+  }
+}
+
+async function flushHistory() {
+  try {
+    const content = await fs.readFile(CONFIG.historyTmpFile, "utf8");
+    await fs.appendFile(CONFIG.historyFile, content, "utf8");
+    await fs.unlink(CONFIG.historyTmpFile);
+  } catch (e) {
+    if (e.code !== "ENOENT") console.error("[HISTORY_FLUSH] Error:", e.message);
+  }
+}
+
 async function loadState() {
   try {
     const content = await fs.readFile(CONFIG.stateFile, "utf8");
+    if (!content || !content.trim()) {
+      return null;
+    }
     return JSON.parse(content);
   } catch (error) {
     return null;
@@ -1682,7 +1817,15 @@ async function trelloCreateDocumentCard(row) {
   if (!response.ok) {
     throw new Error(`Trello create document card: ${response.status} ${bodyText}`);
   }
-  return JSON.parse(bodyText);
+  const card = JSON.parse(bodyText);
+  if (row.href) {
+    try {
+      await trelloAddCardAttachmentFromUrl(card.id, row.href, "Documento");
+    } catch (e) {
+      console.error(`[TRELLO] Error adjuntando archivo a documento ${row.rowId}:`, e.message);
+    }
+  }
+  return card;
 }
 
 async function trelloApplyDocumentRow(cardId, row) {
@@ -1691,6 +1834,184 @@ async function trelloApplyDocumentRow(cardId, row) {
     eventDocumentCardTitle(row),
     eventDocumentCardDescription(row)
   );
+  if (row.href) {
+    try {
+      const attachments = await trelloGetCardAttachmentUrls(cardId);
+      if (!attachments.has(row.href)) {
+        await trelloAddCardAttachmentFromUrl(cardId, row.href, "Documento");
+      }
+    } catch (e) {
+      console.error(`[TRELLO] Error sincronizando archivo en documento ${row.rowId}:`, e.message);
+    }
+  }
+}
+
+function questionCardTitle(row) {
+  const n = normalize(row.no);
+  const reg = normalize(row.regarding);
+  return [`Q&A ${n}`, reg].filter(Boolean).join(" ");
+}
+
+function questionCardDescription(row) {
+  return [
+    `No: ${row.no || "-"}`,
+    `Competitor: ${row.competitor || "-"}`,
+    `For: ${row.forWhom || "-"}`,
+    `Regarding: ${row.regarding || "-"}`,
+    `State: ${row.state || "-"}`,
+    `Answered?: ${row.answered || "-"}`,
+  ].join("\n");
+}
+
+async function trelloCreateQuestionCard(row) {
+  const url = `https://api.trello.com/1/cards?${trelloAuthParams().toString()}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      idList: CONFIG.trelloQuestionsListId,
+      name: questionCardTitle(row),
+      desc: questionCardDescription(row),
+      pos: TRELLO_CARD_POS_TOP,
+    }),
+  });
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Trello create question card: ${response.status} ${bodyText}`);
+  }
+  const card = JSON.parse(bodyText);
+
+  // Sincronizar campos personalizados (Competitor -> Initiator, For -> Respondent)
+  try {
+    await trelloSyncAmazingFields(card.id, {
+      initiator: row.competitor,
+      respondents: row.forWhom,
+    });
+  } catch (e) {
+    console.error(`[TRELLO] Error sincronizando campos en Q&A ${row.no}:`, e.message);
+  }
+
+  if (row.pdfUrl) {
+    try {
+      await trelloAddCardAttachmentFromUrl(card.id, row.pdfUrl, "Question PDF");
+    } catch (e) {
+      console.error(`[TRELLO] Error adjuntando PDF a Q&A ${row.no}:`, e.message);
+    }
+  }
+  await trelloSyncQuestionLabels(card.id, row);
+  return card;
+}
+
+async function trelloSyncQuestionLabels(cardId, row) {
+  if (!CONFIG.trelloKey || !CONFIG.trelloToken || !cardId) return;
+  try {
+    const card = await trelloGetCard(cardId);
+    if (!card.idBoard) return;
+    const boardLabels = await trelloGetBoardLabels(card.idBoard);
+
+    const qLabelNames = ["Race Committee", "Technical Committee"];
+    const qLabelIds = qLabelNames
+      .map((n) => trelloFindLabelIdByNames(boardLabels, n))
+      .filter(Boolean);
+
+    const forText = normalize(row.forWhom).toLowerCase();
+    let wantName = null;
+    if (forText.includes("race committee")) wantName = "Race Committee";
+    else if (forText.includes("technical committee")) wantName = "Technical Committee";
+
+    const wantId = wantName ? trelloFindLabelIdByNames(boardLabels, wantName) : null;
+
+    const onCard = await trelloGetCardLabels(cardId);
+    const onCardIds = new Set(onCard.map((l) => l.id));
+
+    for (const lid of qLabelIds) {
+      const shouldHave = Boolean(wantId && lid === wantId);
+      const has = onCardIds.has(lid);
+      if (shouldHave && !has) await trelloAddCardLabel(cardId, lid);
+      else if (!shouldHave && has) await trelloRemoveCardLabel(cardId, lid);
+    }
+  } catch (error) {
+    console.error(`[TRELLO] Q&A ${row.no} etiquetas por 'for':`, error.message);
+  }
+}
+
+async function trelloUpdateQuestionCard(cardId, row) {
+  const url = `https://api.trello.com/1/cards/${encodeURIComponent(
+    cardId
+  )}?${trelloAuthParams().toString()}`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: questionCardTitle(row),
+      desc: questionCardDescription(row),
+      pos: TRELLO_CARD_POS_TOP,
+    }),
+  });
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Trello update question card: ${response.status} ${bodyText}`);
+  }
+
+  // Sincronizar campos personalizados (Competitor -> Initiator, For -> Respondent)
+  try {
+    await trelloSyncAmazingFields(cardId, {
+      initiator: row.competitor,
+      respondents: row.forWhom,
+    });
+  } catch (e) {
+    console.error(`[TRELLO] Error sincronizando campos en Q&A ${row.no}:`, e.message);
+  }
+
+  if (row.pdfUrl) {
+    try {
+      const attachments = await trelloGetCardAttachmentUrls(cardId);
+      if (!attachments.has(row.pdfUrl)) {
+        await trelloAddCardAttachmentFromUrl(cardId, row.pdfUrl, "Question PDF");
+      }
+    } catch (e) {
+      console.error(`[TRELLO] Error sincronizando PDF en Q&A ${row.no}:`, e.message);
+    }
+  }
+  await trelloSyncQuestionLabels(cardId, row);
+}
+
+async function applyQuestionsTrelloCycle(previousState, currentRows, changes) {
+  if (!CONFIG.trelloEnabled || !CONFIG.trelloQuestionsListId) {
+    return { ...(previousState?.trelloQuestionCards || {}) };
+  }
+
+  const trelloQuestionCards = { ...(previousState?.trelloQuestionCards || {}) };
+
+  for (const row of changes.removed) {
+    const k = questionRowKey(row);
+    delete trelloQuestionCards[k];
+  }
+
+  for (const item of changes.modified) {
+    const cardId = trelloQuestionCards[item.key];
+    if (!cardId) continue;
+    try {
+      await trelloUpdateQuestionCard(cardId, item.after);
+      console.log(`[TRELLO] Q&A actualizado (${item.key})`);
+    } catch (error) {
+      console.error(`[TRELLO] Actualizar Q&A ${item.key}:`, error.message);
+    }
+  }
+
+  for (const row of currentRows) {
+    const k = questionRowKey(row);
+    if (trelloQuestionCards[k]) continue;
+    try {
+      const card = await trelloCreateQuestionCard(row);
+      trelloQuestionCards[k] = card.id;
+      console.log(`[TRELLO] Q&A nueva tarjeta ${k} -> ${card.id}`);
+    } catch (error) {
+      console.error(`[TRELLO] Crear Q&A ${k}:`, error.message);
+    }
+  }
+
+  return trelloQuestionCards;
 }
 
 async function handleRemovedDocumentTrello(cardId, row) {
@@ -1917,6 +2238,7 @@ function formatTelegramMessage(
   changes,
   timeLimitChanges,
   documentChanges,
+  questionChanges,
   timestamp,
   baseline
 ) {
@@ -1931,6 +2253,12 @@ function formatTelegramMessage(
   };
 
   const doc = documentChanges || {
+    added: [],
+    modified: [],
+    removed: [],
+  };
+
+  const q = questionChanges || {
     added: [],
     modified: [],
     removed: [],
@@ -2050,6 +2378,26 @@ function formatTelegramMessage(
     }
   }
 
+  if (q.added.length || q.modified.length || q.removed.length) {
+    lines.push("--- Q&A (Questions)");
+    if (q.added.length) {
+      lines.push(`Nuevas preguntas: ${q.added.length}`);
+      q.added.slice(0, 5).forEach((row) => {
+        lines.push(`No: ${row.no} - ${row.regarding}`);
+        lines.push("");
+      });
+    }
+    if (q.modified.length) {
+      lines.push(`Preguntas modificadas: ${q.modified.length}`);
+      q.modified.slice(0, 3).forEach((item) => {
+        lines.push(`No: ${item.after.no}`);
+        lines.push(`Estado: ${item.before.state} -> ${item.after.state}`);
+        lines.push(`Respondida: ${item.before.answered || "No"} -> ${item.after.answered || "No"}`);
+        lines.push("");
+      });
+    }
+  }
+
   return lines.join("\n");
 }
 
@@ -2089,6 +2437,7 @@ async function runMonitorCycle() {
   const previousRows = previousState?.rows || [];
   const previousTimeLimits = previousState?.timeLimitRows || [];
   const previousDocumentRows = previousState?.documentRows || [];
+  const previousQuestionRows = previousState?.questionRows || [];
 
   let documentRowsForState = previousDocumentRows;
   let documentChanges = { added: [], modified: [], removed: [] };
@@ -2102,6 +2451,21 @@ async function runMonitorCycle() {
       console.error("[DOCS]", error.message);
       documentRowsForState = previousDocumentRows;
       documentChanges = { added: [], modified: [], removed: [] };
+    }
+  }
+
+  let questionRowsForState = previousQuestionRows;
+  let questionChanges = { added: [], modified: [], removed: [] };
+  if (normalize(CONFIG.questionsUrl)) {
+    try {
+      const qHtml = await fetchHtml(CONFIG.questionsUrl);
+      const currentQuestionRows = extractQuestionsRows(qHtml);
+      questionRowsForState = currentQuestionRows;
+      questionChanges = detectQuestionsChanges(previousQuestionRows, currentQuestionRows);
+    } catch (error) {
+      console.error("[QUESTIONS]", error.message);
+      questionRowsForState = previousQuestionRows;
+      questionChanges = { added: [], modified: [], removed: [] };
     }
   }
 
@@ -2131,7 +2495,15 @@ async function runMonitorCycle() {
     documentChanges.added.length > 0 ||
     documentChanges.modified.length > 0 ||
     documentChanges.removed.length > 0;
-  const hasChanges = hasHearingChanges || hasTimeLimitChanges || hasDocumentChanges;
+  const hasQuestionChanges =
+    questionChanges.added.length > 0 ||
+    questionChanges.modified.length > 0 ||
+    questionChanges.removed.length > 0;
+  const hasChanges =
+    hasHearingChanges ||
+    hasTimeLimitChanges ||
+    hasDocumentChanges ||
+    hasQuestionChanges;
 
   let trelloCards = migrateStringKeysByHearingCase(previousState?.trelloCards || {});
   if (
@@ -2167,6 +2539,15 @@ async function runMonitorCycle() {
     );
   }
 
+  let trelloQuestionCards = { ...(previousState?.trelloQuestionCards || {}) };
+  if (CONFIG.trelloEnabled && CONFIG.trelloKey && CONFIG.trelloToken) {
+    trelloQuestionCards = await applyQuestionsTrelloCycle(
+      previousState,
+      questionRowsForState,
+      questionChanges
+    );
+  }
+
   const snapshot = {
     timestamp,
     rowCount: currentRows.length,
@@ -2175,18 +2556,21 @@ async function runMonitorCycle() {
     timeLimitRows: currentTimeLimits,
     documentRowCount: documentRowsForState.length,
     documentRows: documentRowsForState,
+    questionRowCount: questionRowsForState.length,
+    questionRows: questionRowsForState,
     trelloCards,
     trelloTimeLimitCards,
     trelloDocumentCards,
+    trelloQuestionCards,
     hearingAttachmentUrlsByCase,
     fullDecisionSyncedByCase,
   };
 
-  await appendJsonLine(CONFIG.historyFile, snapshot);
+  await appendHistoryBuffered(snapshot);
 
   if (!previousState) {
     console.log(
-      `[INIT] Estado inicial: ${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s) evento.`
+      `[INIT] Estado inicial: ${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas.`
     );
   }
 
@@ -2196,21 +2580,24 @@ async function runMonitorCycle() {
       changes,
       timeLimitChanges,
       documentChanges,
+      questionChanges,
       currentRowCount: currentRows.length,
       currentTimeLimitCount: currentTimeLimits.length,
       currentDocumentCount: documentRowsForState.length,
+      currentQuestionCount: questionRowsForState.length,
       ...(previousState ? {} : { baseline: true }),
     };
 
     await appendJsonLine(CONFIG.changesFile, event);
     console.log(
-      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length}`
+      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length} | Questions +${questionChanges.added.length} ~${questionChanges.modified.length} -${questionChanges.removed.length}`
     );
 
     const message = formatTelegramMessage(
       changes,
       timeLimitChanges,
       documentChanges,
+      questionChanges,
       timestamp,
       !previousState
     );
@@ -2221,7 +2608,7 @@ async function runMonitorCycle() {
     }
   } else if (previousState) {
     console.log(
-      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s))`
+      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas)`
     );
   }
 
@@ -2246,6 +2633,9 @@ async function main() {
   }
   if (CONFIG.decisionsUrl) {
     console.log(`[START] Hearing Decisions RRS -> ${CONFIG.decisionsUrl}`);
+  }
+  if (CONFIG.questionsUrl) {
+    console.log(`[START] Q&A Questions RRS -> ${CONFIG.questionsUrl}`);
   }
 
   const execute = async () => {

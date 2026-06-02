@@ -1,8 +1,6 @@
 node_modules/
 .env
 *.log
-# Datos eliminados por modificarse constantemente
-data/
 # Otros archivos temporales o de sistema
 .DS_Store
 Thumbs.db

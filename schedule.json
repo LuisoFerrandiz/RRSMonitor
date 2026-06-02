@@ -1,0 +1,118 @@
+{
+  "plans": [
+    {
+      "name": "Dias previos a la regata",
+      "dates": [
+        "2026-05-27",
+        "2026-05-28",
+        "2026-05-29",
+        "2026-05-30",
+        "2026-05-31"
+      ],
+      "windows": [
+        {
+          "name": "Todo el dia",
+          "start": "00:00",
+          "end": "24:00",
+          "frequencyMinutes": 30
+        }
+      ]
+    },
+    {
+      "name": "Dias de regata 1, 2, 5, 6 y 7",
+      "dates": [
+        "2026-06-01",
+        "2026-06-02",
+        "2026-06-05",
+        "2026-06-06",
+        "2026-06-07"
+      ],
+      "windows": [
+        {
+          "name": "Evento 00:00-09:00",
+          "start": "00:00",
+          "end": "09:00",
+          "frequencyMinutes": 10
+        },
+        {
+          "name": "Evento 09:00-13:00",
+          "start": "09:00",
+          "end": "13:00",
+          "frequencyMinutes": 5
+        },
+        {
+          "name": "Evento 13:00-18:00",
+          "start": "13:00",
+          "end": "18:00",
+          "frequencyMinutes": 1
+        },
+        {
+          "name": "Evento 18:00-20:00",
+          "start": "18:00",
+          "end": "20:00",
+          "frequencyMinutes": 5
+        },
+        {
+          "name": "Evento 20:00-24:00",
+          "start": "20:00",
+          "end": "24:00",
+          "frequencyMinutes": 10
+        }
+      ]
+    },
+    {
+      "name": "Dia 3 de junio",
+      "dates": ["2026-06-03"],
+      "windows": [
+        {
+          "name": "Dia 3 00:00-09:00",
+          "start": "00:00",
+          "end": "09:00",
+          "frequencyMinutes": 10
+        },
+        {
+          "name": "Dia 3 09:00-18:00",
+          "start": "09:00",
+          "end": "18:00",
+          "frequencyMinutes": 5
+        },
+        {
+          "name": "Dia 3 18:00-21:00",
+          "start": "18:00",
+          "end": "21:00",
+          "frequencyMinutes": 1
+        },
+        {
+          "name": "Dia 3 21:00-24:00",
+          "start": "21:00",
+          "end": "24:00",
+          "frequencyMinutes": 10
+        }
+      ]
+    },
+    {
+      "name": "Dia 4 de junio",
+      "dates": ["2026-06-04"],
+      "windows": [
+        {
+          "name": "Dia 4 00:00-06:00",
+          "start": "00:00",
+          "end": "06:00",
+          "frequencyMinutes": 10
+        },
+        {
+          "name": "Dia 4 06:00-10:00",
+          "start": "06:00",
+          "end": "10:00",
+          "frequencyMinutes": 1
+        },
+        {
+          "name": "Dia 4 10:00-24:00",
+          "start": "10:00",
+          "end": "24:00",
+          "frequencyMinutes": 10
+        }
+      ]
+    }
+  ]
+}
