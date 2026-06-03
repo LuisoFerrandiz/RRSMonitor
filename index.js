@@ -223,36 +223,34 @@ const TRELLO_CARD_POS_TOP = "top";
 /** Nombres de etiquetas en el tablero Trello (deben existir; "Other" no lleva etiqueta). */
 const HEARING_TYPE_TRELLO_LABEL_NAMES = [
   "Protest",
-  "Protest by PC",
-  "Protest by RC",
-  "Protest by TC",
+  "International jury",
   "Request to Reopen",
   "Request for Redress",
   "Race Committee",
   "Technical Committee",
 ];
 
-function hearingTypeToLabelName(type) {
+function hearingTypeToLabelNames(type) {
   const t = normalize(type).toLowerCase();
   if (t === "protest") {
-    return "Protest";
+    return ["Protest"];
   }
   if (t === "protest by pc") {
-    return "Protest by PC";
+    return ["Protest", "International jury"];
   }
   if (t === "protest by rc") {
-    return "Protest by RC";
+    return ["Protest", "Race Committee"];
   }
   if (t === "protest by tc") {
-    return "Protest by TC";
+    return ["Protest", "Technical Committee"];
   }
   if (t === "request to reopen") {
-    return "Request to Reopen";
+    return ["Request to Reopen"];
   }
   if (t === "request for redress") {
-    return "Request for Redress";
+    return ["Request for Redress"];
   }
-  return null;
+  return [];
 }
 
 function rowFingerprint(row) {
@@ -1235,8 +1233,12 @@ async function trelloSyncHearingTypeLabels(cardId, row) {
       trelloHearingLabelWarnedBoards.add(card.idBoard);
     }
 
-    const wantName = hearingTypeToLabelName(row.type);
-    const wantId = wantName ? trelloFindLabelIdByNames(boardLabels, wantName) : null;
+    const wantNames = hearingTypeToLabelNames(row.type);
+    const wantIds = new Set(
+      wantNames
+        .map((n) => trelloFindLabelIdByNames(boardLabels, n))
+        .filter(Boolean)
+    );
 
     let onCard;
     try {
@@ -1248,7 +1250,7 @@ async function trelloSyncHearingTypeLabels(cardId, row) {
     const onCardIds = new Set(onCard.map((l) => l.id));
 
     for (const lid of hearingTypeLabelIds) {
-      const shouldHave = Boolean(wantId && lid === wantId);
+      const shouldHave = wantIds.has(lid);
       const has = onCardIds.has(lid);
       if (shouldHave && !has) {
         await trelloAddCardLabel(cardId, lid);
@@ -1909,23 +1911,33 @@ async function trelloSyncQuestionLabels(cardId, row) {
     if (!card.idBoard) return;
     const boardLabels = await trelloGetBoardLabels(card.idBoard);
 
-    const qLabelNames = ["Race Committee", "Technical Committee"];
+    const qLabelNames = ["Race Committee", "Technical Committee", "Answered"];
     const qLabelIds = qLabelNames
       .map((n) => trelloFindLabelIdByNames(boardLabels, n))
       .filter(Boolean);
 
+    const wantIds = new Set();
     const forText = normalize(row.forWhom).toLowerCase();
-    let wantName = null;
-    if (forText.includes("race committee")) wantName = "Race Committee";
-    else if (forText.includes("technical committee")) wantName = "Technical Committee";
+    if (forText.includes("race committee")) {
+      const id = trelloFindLabelIdByNames(boardLabels, "Race Committee");
+      if (id) wantIds.add(id);
+    }
+    if (forText.includes("technical committee")) {
+      const id = trelloFindLabelIdByNames(boardLabels, "Technical Committee");
+      if (id) wantIds.add(id);
+    }
 
-    const wantId = wantName ? trelloFindLabelIdByNames(boardLabels, wantName) : null;
+    // Si hay contenido en la columna 'Answered' (normalmente una fecha), ponemos la etiqueta
+    if (normalize(row.answered)) {
+      const id = trelloFindLabelIdByNames(boardLabels, "Answered");
+      if (id) wantIds.add(id);
+    }
 
     const onCard = await trelloGetCardLabels(cardId);
     const onCardIds = new Set(onCard.map((l) => l.id));
 
     for (const lid of qLabelIds) {
-      const shouldHave = Boolean(wantId && lid === wantId);
+      const shouldHave = wantIds.has(lid);
       const has = onCardIds.has(lid);
       if (shouldHave && !has) await trelloAddCardLabel(cardId, lid);
       else if (!shouldHave && has) await trelloRemoveCardLabel(cardId, lid);
