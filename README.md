@@ -12,8 +12,9 @@ Monitor del sitio **Racing Rules of Sailing** para un evento concreto. Un único
 | Misma página schedule | (misma URL) | **Protest Time Limit(s)** — tabla `table.table-warning`: fecha, clase, tiempo límite, *Remaining*. |
 | Documentos del evento | `RRS_DOCUMENTS_URL` | Tabla *Event Documents* (`#document-table`): enlaces, descripción, fecha. |
 | Decisiones publicadas | `RRS_DECISIONS_URL` | Tabla *Hearing Decisions*: columna *No.*, columna *Decision* (texto y, si existe, enlace con texto **Full Decision**). |
+| Consultas (Q&A) | `RRS_QUESTIONS_URL` | Tabla de preguntas: `No.`, `Competitor`, `For`, `Regarding`, `State`, `Answered`. |
 
-Puedes usar solo `RRS_EVENT_ID` y plantillas con `{id_evento}` en las URLs; el script resuelve IDs y rutas `schedules` / `documents` / `decisions`.
+Puedes usar solo `RRS_EVENT_ID` y plantillas con `{id_evento}` en las URLs; el script resuelve IDs y rutas `schedules` / `documents` / `decisions` / `questions`.
 
 Ejemplo de URL de calendario:
 
@@ -26,9 +27,10 @@ Ejemplo de URL de calendario:
 1. Descarga la página de **schedule** y extrae audiencias + time limits.
 2. Si hay `RRS_DOCUMENTS_URL`, descarga **documents** y calcula altas / bajas / cambios.
 3. Si hay `RRS_DECISIONS_URL` y Trello está activo con credenciales, descarga **decisions** una vez por ciclo (texto por caso, enlace *Full Decision* si aplica).
-4. Compara audiencias, time limits y documentos con `state.json` anterior.
-5. Opcional: actualiza **Trello** (audiencias, listas derivadas, time limits, documentos TOA, decisiones / Full Decision).
-6. Escribe **histórico** y, si hubo cambios y no es la primera corrida, **Telegram** (no se notifica la línea base inicial).
+4. Si hay `RRS_QUESTIONS_URL`, descarga **questions** y sincroniza con Trello y Telegram.
+5. Compara audiencias, time limits, documentos y preguntas con `state.json` anterior.
+6. Opcional: actualiza **Trello** (audiencias, listas derivadas, time limits, documentos TOA, decisiones / Full Decision, Q&A).
+7. Escribe **histórico** y, si hubo cambios y no es la primera corrida, **Telegram** (no se notifica la línea base inicial).
 
 ---
 
@@ -36,9 +38,9 @@ Ejemplo de URL de calendario:
 
 - **Timestamps** en `state.json`, `history.jsonl`, `changes.jsonl`, consola y Telegram usan la zona **`Europe/Madrid`** (CET/CEST con offset `+01:00` / `+02:00` en el string). Opcional: define `REPORT_TIME_ZONE` en `.env` con cualquier [zona IANA](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
-- **`state.json`** — Último snapshot: `rows`, `timeLimitRows`, `documentRows`, mapas `trelloCards`, `trelloTimeLimitCards`, `trelloDocumentCards`, `hearingAttachmentUrlsByCase` (URLs ya enlazadas bajo *Type*), `fullDecisionSyncedByCase` (URL del PDF *Full Decision* ya tratada por caso), etc.
+- **`state.json`** — Último snapshot: `rows`, `timeLimitRows`, `documentRows`, `questionRows`, mapas `trelloCards`, `trelloTimeLimitCards`, `trelloDocumentCards`, `trelloQuestionCards`, `hearingAttachmentUrlsByCase`, `fullDecisionSyncedByCase`, etc.
 - **`history.jsonl`** — Una línea JSON por ciclo (snapshots completos).
-- **`changes.jsonl`** — Solo ciclos con cambios: `changes` (audiencias), `timeLimitChanges`, `documentChanges`.
+- **`changes.jsonl`** — Solo ciclos con cambios: `changes` (audiencias), `timeLimitChanges`, `documentChanges`, `questionChanges`.
 
 **Cambiar carpeta o vaciar datos**
 
@@ -83,9 +85,18 @@ Líneas fijas en este orden:
 
 Los campos de texto en Trello (*Initiator*, *Respondent*, *Race*, *Type*, *Schedule*, etc.) se siguen sincronizando por API si existen en el tablero; **la descripción lleva siempre el bloque completo** arriba.
 
-### Etiquetas por tipo
+### Etiquetas por tipo (soporte multi-etiqueta)
 
-- Coinciden nombres como *Protest*, *Protest by PC*, *Request to Reopen*, etc. Deben existir en el tablero.
+El script gestiona las siguientes etiquetas según el campo `Type` de RRS:
+
+- `Protest` -> Etiqueta: **Protest**
+- `Protest by PC` -> Etiquetas: **Protest** + **International jury**
+- `Protest by RC` -> Etiquetas: **Protest** + **Race Committee**
+- `Protest by TC` -> Etiquetas: **Protest** + **Technical Committee**
+- `Request to Reopen` -> Etiqueta: **Request to Reopen**
+- `Request for Redress` -> Etiqueta: **Request for Redress**
+
+*Nota: Las etiquetas deben existir en el tablero con esos nombres exactos.*
 
 ### Adjuntos bajo *Type*
 
@@ -96,7 +107,7 @@ Los campos de texto en Trello (*Initiator*, *Respondent*, *Race*, *Type*, *Sched
 - La descripción se **regenera** con el mismo bloque de caso y, si la página *Hearing Decisions* aporta texto para ese número de caso, una línea **`Decision: …`** antes del pie.
 - Pie fijo: `--- Caso eliminado del calendario RRS · movido a Decided`.
 - Custom field de texto **`DECISION`** (nombre flexible: *Decision* / *Decisions*): se rellena con el texto de la columna *Decision* en RRS cuando hay datos cargados desde `RRS_DECISIONS_URL`.
-- Etiqueta de tipo se alinea con *Other* según la lógica existente.
+- Etiqueta de tipo se alinea con *Other* (elimina las etiquetas de tipo anteriores).
 
 ### Hearing Decisions y enlace **Full Decision**
 
@@ -127,20 +138,33 @@ Esto se aplica a **todas** las tarjetas de audiencia que sigan mapeadas en `trel
 
 ---
 
-## 8. Configuración rápida
+## 8. Trello — Q&A (Questions)
+
+- Lista: `TRELLO_QUESTIONS_LIST_ID`.
+- Título: `Q&A <no> <regarding>`.
+- Descripción: Detalles de la pregunta (Competitor, For, Regarding, State, Answered).
+- **Etiquetas automáticas**:
+    - Si el campo `For` incluye "Race Committee" -> Etiqueta: **Race Committee**.
+    - Si el campo `For` incluye "Technical Committee" -> Etiqueta: **Technical Committee**.
+    - Si la columna `Answered` tiene contenido (fecha) -> Etiqueta: **Answered**.
+- Sincroniza campos personalizados (Competitor -> Initiator, For -> Respondent) y adjunta el PDF de la pregunta si existe.
+
+---
+
+## 9. Configuración rápida
 
 1. `cp .env.example .env` (o equivalente en Windows).
 2. Rellenar al menos `RRS_EVENT_ID` o URLs finales sin placeholders.
 3. Opcional: Telegram, Trello (todas las listas y tokens que uses en producción).
 
-## 9. Ejecución
+## 10. Ejecución
 
 ```bash
 npm run once    # un ciclo
 npm start       # bucle según POLL_INTERVAL_MS
 ```
 
-## 10. Requisitos
+## 11. Requisitos
 
 - Node.js 18+ (`fetch`, `FormData`, `Blob` para adjuntos subidos).
 
@@ -217,97 +241,41 @@ El script **no usa el nombre del tablero** en `.env`: solo **Key**, **Token** e 
 
 **1. Crear en el tablero estas listas (nombres sugeridos)**
 
-Crea **cinco listas** y úsalas así en `.env` (una entrada por lista):
+Crea **seis listas** y úsalas así en `.env` (una entrada por lista):
 
 - **`TRELLO_LIST_ID`**  
-  - **Nombre sugerido en Trello:** *Hearing Request* (o *Solicitudes de audiencia*).  
   - **Tarjetas:** audiencias **sin** hora tipo `HH:MM` en *Schedule*, o *Pending* / vacío. Aquí se **crean** las tarjetas nuevas por defecto.
 
 - **`TRELLO_SCHEDULE_LIST_ID`**  
-  - **Nombre sugerido:** *Schedule* (o *Programadas*).  
   - **Tarjetas:** la misma audiencia cuando en RRS el *Schedule* ya lleva **hora** (`19:20`, etc.).
 
 - **`TRELLO_DECIDED_LIST_ID`**  
-  - **Nombre sugerido:** *Decided* (o *Decididas*).  
   - **Tarjetas:** cuando el caso **desaparece** del calendario RRS; el script mueve la tarjeta aquí y puede rellenar decisión / adjunto *Full Decision*.
 
 - **`TRELLO_TIMELIMIT_LIST_ID`**  
-  - **Nombre sugerido:** *Time Limit* (o *Límites de protesta*).  
-  - **Tarjetas:** filas de **Protest Time Limit(s)** de la página RRS (misma página que el schedule).
+  - **Tarjetas:** filas de **Protest Time Limit(s)** de la página RRS.
 
 - **`TRELLO_TOA_DOCUMENTS_LIST_ID`**  
-  - **Nombre sugerido:** *TOA-Documents* (o *Documentos del evento*).  
-  - **Tarjetas:** filas de **Event Documents** en RRS (`RRS_DOCUMENTS_URL`).
+  - **Tarjetas:** filas de **Event Documents** en RRS.
 
-En el tablero, crea también **custom fields** (tipo texto salvo que se indique) y **etiquetas** con estos nombres. El script compara **sin distinguir mayúsculas** y **sin importar signos de puntuación** en el nombre (p. ej. `Initiator` y `initiator` equivalen), pero conviene crear los campos con nombres claros como los de abajo.
+- **`TRELLO_QUESTIONS_LIST_ID`**  
+  - **Tarjetas:** filas de la tabla de preguntas (Q&A).
 
 **Custom fields (texto)**
 
-- **Initiator** (el código también admite el typo *Intiator*).
-- **Respondent** — admite: *Respondent*, *Respondents*, *Respondant*, *Respondent(s)*.
-- **Race**
-- **Type**
-- **Schedule**
-- **Decision** o **Decisions** — aquí se copia el texto de la columna *Decision* en RRS (p. ej. al mover la tarjeta a *Decided*).
-
-**Custom field (casilla de verificación)**
-
-- Un **campo tipo casilla** cuyo **nombre visible** sea uno de: **Full Decision**, **Full decision**, **FullDecision**, **Full decision file** — el script lo marca cuando en RRS hay el enlace *Full Decision* (y gestiona el PDF).
+- **Initiator**, **Respondent**, **Race**, **Type**, **Schedule**, **Decision**.
 
 **Etiquetas (labels) en el tablero**
 
-Deben existir **con estos textos** (el script los busca por nombre). Si falta alguna, verás avisos en consola.
+Deben existir **con estos textos** (el script los busca por nombre).
 
 1. `Protest`
-2. `Protest by PC`
-3. `Protest by RC`
-4. `Protest by TC`
-5. `Request to Reopen`
-6. `Request for Redress`
-
-Los tipos que vienen de RRS se encajan con la etiqueta del mismo nombre. Si el tipo **no** encaja en la lista, **no** se pone ninguna de estas etiquetas; cuando el caso pasa a *Decided*, el script usa el tipo *Other* para **quitar** estas etiquetas de la tarjeta.
-
-**2. Obtener `TRELLO_KEY` y `TRELLO_TOKEN`**
-
-- Inicia sesión en [Trello](https://trello.com) con la cuenta que poseerá el tablero.
-- Abre la página de **clave de API** (según la cuenta puede llamarse *Developer API Keys*):  
-  [https://trello.com/power-ups/admin](https://trello.com/power-ups/admin)  
-  Si no ves la clave ahí, prueba [https://trello.com/app-key](https://trello.com/app-key) (Atlassian/Trello a veces muestra el flujo en una u otra URL).
-- Copia el **API Key** → es **`TRELLO_KEY`** en `.env`.
-- En la misma página, usa el enlace para **generar un Token** (te pedirá autorizar). Al aceptar, verás un **token largo** → es **`TRELLO_TOKEN`**.  
-  Trátalo como contraseña: no lo subas a repositorios.
-
-**3. Obtener el ID de cada lista**
-
-Con **Key** y **Token** ya copiados (sin comillas en `.env`; en la URL van tal cual):
-
-1. **ID del tablero**  
-   En el navegador abre (sustituye `KEY` y `TOKEN`):
-
-   `https://api.trello.com/1/members/me/boards?key=KEY&token=TOKEN`
-
-   En el JSON busca el tablero por su `"name"` y copia su **`"id"`** (cadena hexadecimal).
-
-2. **Listas de ese tablero**  
-   Abre (sustituye también `BOARD_ID` por el id del paso anterior):
-
-   `https://api.trello.com/1/boards/BOARD_ID/lists?key=KEY&token=TOKEN`
-
-   Verás una lista de objetos con **`"id"`** y **`"name"`** por cada columna. Asigna cada **`id`** a la variable de `.env` que corresponda al **rol** de la lista (según el punto 1 de arriba), no solo al nombre si lo cambiaste.
-
-**4. Activar Trello en `.env` y reiniciar**
-
-- `TRELLO_ENABLED=true`
-- `TRELLO_KEY=...`
-- `TRELLO_TOKEN=...`
-- Los cinco `TRELLO_*_LIST_ID` con los IDs del paso 3.
-
-Guarda y **reinicia** el monitor.
-
-**5. `state.json` y tablero nuevo**
-
-- Si el tablero está **vacío** y **`state.json`** también (o sin `trelloCards`), el script **creará tarjetas nuevas** en esas listas sin duplicar IDs viejos.
-- Si reutilizas un `state.json` de **otro** tablero, los IDs de tarjeta antiguos **no** valdrán aquí: borra o vacía el estado o usa otro `DATA_DIR`.
+2. `International jury`
+3. `Request to Reopen`
+4. `Request for Redress`
+5. `Race Committee`
+6. `Technical Committee`
+7. `Answered`
 
 ---
 
@@ -316,3 +284,5 @@ Guarda y **reinicia** el monitor.
 - Descripción Trello **sin** línea duplicada `No:`; bloque **Case + Initiator + Respondent + Race + Type + Schedule (DD/MM HH:MM) + Location**.
 - Casos a **Decided**: descripción con **Decision** en texto + custom field **DECISION** + pie de baja del calendario.
 - **`RRS_DECISIONS_URL`**: en cada ciclo con Trello, lectura de decisiones; enlace **Full Decision** → casilla personalizada + PDF adjunto + estado **`fullDecisionSyncedByCase`**.
+- **Mapeo multi-etiqueta**: "Protest by PC" ahora pone *Protest* + *International jury*, etc.
+- **Sincronización Q&A**: Nueva lista para preguntas con etiquetas automáticas por comité y estado de respuesta (*Answered*).
