@@ -1,10 +1,10 @@
 {
-  "timestamp": "2026-06-02T16:41:06.155+02:00",
+  "timestamp": "2026-06-07T23:49:06.151+02:00",
   "rowCount": 0,
   "rows": [],
   "timeLimitRowCount": 0,
   "timeLimitRows": [],
-  "documentRowCount": 11,
+  "documentRowCount": 18,
   "documentRows": [
     {
       "rowId": "173546",
@@ -71,9 +71,51 @@
       "description": "Notice Of Protest By Official -- SC 1 - GBR52L - Jolt",
       "href": "https://www.racingrulesofsailing.org/documents/191884",
       "date": "2026-06-02"
+    },
+    {
+      "rowId": "191932",
+      "description": "Notice to Competitors 2 - Offshore Course",
+      "href": "https://www.racingrulesofsailing.org/documents/191932",
+      "date": "2026-06-02"
+    },
+    {
+      "rowId": "191988",
+      "description": "Notice to Competitors 3 - Offshore Race Course - updated 03062026",
+      "href": "https://www.racingrulesofsailing.org/documents/191988",
+      "date": "2026-06-03"
+    },
+    {
+      "rowId": "192008",
+      "description": "Notice to Competitors 4 - Offshore Race Wednesday 3rd June",
+      "href": "https://www.racingrulesofsailing.org/documents/192008",
+      "date": "2026-06-03"
+    },
+    {
+      "rowId": "192015",
+      "description": "Live Tracking Offshore Race",
+      "href": "https://www.tractrac.com/event-page/event_20260602_RangeRover/3531",
+      "date": "2026-06-03"
+    },
+    {
+      "rowId": "192118",
+      "description": "Live Tracking",
+      "href": "https://tractrac.it/event/RRSC2026",
+      "date": "2026-06-04"
+    },
+    {
+      "rowId": "192299",
+      "description": "Notice to Competitors 5",
+      "href": "https://www.racingrulesofsailing.org/documents/192299",
+      "date": "2026-06-05"
+    },
+    {
+      "rowId": "192653",
+      "description": "Notice to Compentitors N. 6",
+      "href": "https://www.racingrulesofsailing.org/documents/192653",
+      "date": "2026-06-07"
     }
   ],
-  "questionRowCount": 13,
+  "questionRowCount": 19,
   "questionRows": [
     {
       "no": "01",
@@ -83,15 +125,6 @@
       "state": "Published",
       "answered": "2026-05-31 18:03",
       "pdfUrl": "https://www.racingrulesofsailing.org/questions/4588.pdf?event_id=13725"
-    },
-    {
-      "no": "02",
-      "competitor": "Sardinia Cup - GBR 5N - INO VERITAS - Dean Barker",
-      "forWhom": "Race Committee",
-      "regarding": "",
-      "state": "Submitted",
-      "answered": "",
-      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4590.pdf?event_id=13725"
     },
     {
       "no": "03",
@@ -170,8 +203,8 @@
       "competitor": "Sardinia Cup - SC 2 - GER8333 - NEOMIND - Manuel Polo",
       "forWhom": "Race Committee",
       "regarding": "Good evening, There are sever",
-      "state": "Submitted",
-      "answered": "",
+      "state": "Published",
+      "answered": "2026-06-02 18:59",
       "pdfUrl": "https://www.racingrulesofsailing.org/questions/4601.pdf?event_id=13725"
     },
     {
@@ -188,12 +221,90 @@
       "competitor": "Sardinia Cup - SC 1 - ITA2352 - Xio - Ian Moore",
       "forWhom": "Technical Committee",
       "regarding": "The NOR States that.... The d",
-      "state": "Submitted",
-      "answered": "",
+      "state": "Published",
+      "answered": "2026-06-02 16:46",
       "pdfUrl": "https://www.racingrulesofsailing.org/questions/4603.pdf?event_id=13725"
+    },
+    {
+      "no": "14",
+      "competitor": "Sardinia Cup - DJANGO WR - Giulio Maccarrone",
+      "forWhom": "Race Committee",
+      "regarding": "Is a boat allowed to leave the",
+      "state": "Published",
+      "answered": "2026-06-02 18:52",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4604.pdf?event_id=13725"
+    },
+    {
+      "no": "15",
+      "competitor": "Sardinia Cup - GBR 1888N - Django JP - Michele Ivaldi",
+      "forWhom": "Race Committee",
+      "regarding": "Regarding the description of t",
+      "state": "Published",
+      "answered": "2026-06-03 12:10",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4605.pdf?event_id=13725"
+    },
+    {
+      "no": "16",
+      "competitor": "Sardinia Cup - SC 2 - BEWILD - Renzo Grottesi",
+      "forWhom": "Race Committee",
+      "regarding": "Per S.I. 13.2 the offshore sta",
+      "state": "Published",
+      "answered": "2026-06-03 12:13",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4606.pdf?event_id=13725"
+    },
+    {
+      "no": "17",
+      "competitor": "Sardinia Cup - SC 2 - GBR 1888N - Django JP - Michele Ivaldi",
+      "forWhom": "Technical Committee",
+      "regarding": "Good morning, can I kindly ask",
+      "state": "Published",
+      "answered": "2026-06-04 10:39",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4608.pdf?event_id=13725"
+    },
+    {
+      "no": "18",
+      "competitor": "Sardinia Cup - SC 2 - GBR 1888N - Django JP - Michele Ivaldi",
+      "forWhom": "Technical Committee",
+      "regarding": "Good morning, can I kindly ask",
+      "state": "Published",
+      "answered": "2026-06-04 10:41",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4609.pdf?event_id=13725"
+    },
+    {
+      "no": "19",
+      "competitor": "Sardinia Cup - SC 1 - GBR 6255N - LISA R - Piero Ricetti",
+      "forWhom": "Technical Committee",
+      "regarding": "we kindly request permission t",
+      "state": "Published",
+      "answered": "2026-06-04 15:55",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4610.pdf?event_id=13725"
+    },
+    {
+      "no": "20",
+      "competitor": "Sardinia Cup - SC 2 - GBR 1888N - Django jp - Michele Ivaldi",
+      "forWhom": "Technical Committee",
+      "regarding": "Good afternoon, In the last do",
+      "state": "Published",
+      "answered": "2026-06-05 15:49",
+      "pdfUrl": "https://www.racingrulesofsailing.org/questions/4614.pdf?event_id=13725"
+    }
+  ],
+  "scoringInquiryRowCount": 1,
+  "scoringInquiryRows": [
+    {
+      "no": "01",
+      "date": "2026-06-05",
+      "course": "WL",
+      "race": "4",
+      "competitor": "Sardinia Cup - SC 2 - SWE41 - Ran - Steve Hayles",
+      "posted": "2",
+      "corrected": "",
+      "response": "2026-06-05 16:51",
+      "pdfUrl": "https://www.racingrulesofsailing.org/scoring_inquiries/18614.pdf?event_id=13725"
     }
   ],
   "trelloCards": {},
+  "trelloSyncedFingerprintByCase": {},
   "trelloTimeLimitCards": {},
   "trelloDocumentCards": {
     "173546": "6a16a76a3691a859592dc24d",
@@ -206,15 +317,28 @@
     "191124": "6a19c2267f7a6a829f78b000",
     "191612": "6a1c50271f051d35a0597862",
     "191873": "6a1e7f4947dd9af09107ccfc",
-    "191884": "6a1ea6a7751bd3c6124cd288"
+    "191884": "6a1ea6a7751bd3c6124cd288",
+    "191932": "6a1f037510017bc916cce142",
+    "191988": "6a200aa8a4a0ed55c23ff517",
+    "192008": "6a203be38b111ef672a8eb16",
+    "192015": "6a2049f794fa3f77e5da69b0",
+    "192118": "6a219693324c5c5460930602",
+    "192299": "6a22e6d96c54f26f0db5a453",
+    "192653": "6a25413b3e1c9847787a1c70"
   },
   "trelloQuestionCards": {
     "10": "6a1eba68f000203008270766",
     "11": "6a1eba6996a430fd293bb6b2",
     "12": "6a1ed675f3792b83e6bcee6a",
     "13": "6a1ee935355a1807c6afe285",
+    "14": "6a1efb7e6410167ae5db959c",
+    "15": "6a1fea514a9d1ed2011261ec",
+    "16": "6a1ff9c90f362bf64af482aa",
+    "17": "6a21432edd45cfd11e59fbc8",
+    "18": "6a214da0b9be0eb2e86f18cb",
+    "19": "6a216d979686b0c239cceab5",
+    "20": "6a22cc63688421a6706625a1",
     "01": "6a1eba5a9e25b424a188d7c4",
-    "02": "6a1eba5c426b6159636017e7",
     "03": "6a1eba5d937e425db26e4cd3",
     "04": "6a1eba5ff0bdba82d760f07c",
     "05": "6a1eba612c247e975ed65693",
@@ -223,8 +347,13 @@
     "08": "6a1eba659ce7eac735c0921a",
     "09": "6a1eba670f517fe96003629b"
   },
+  "trelloScoringInquiryCards": {
+    "01": "6a23d4b0965881b1053899ae"
+  },
   "hearingAttachmentUrlsByCase": {},
   "fullDecisionSyncedByCase": {
-    "2": "https://www.racingrulesofsailing.org/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsiZGF0YSI6NTc5OTA4LCJwdXIiOiJibG9iX2lkIn19--6d2d749cda6a8c7063d456dcf778d15aca4fa470/range_rover_sardinia_cup_decision_02.pdf"
-  }
+    "2": "https://www.racingrulesofsailing.org/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsiZGF0YSI6NTc5OTA4LCJwdXIiOiJibG9iX2lkIn19--6d2d749cda6a8c7063d456dcf778d15aca4fa470/range_rover_sardinia_cup_decision_02.pdf",
+    "3": "https://www.racingrulesofsailing.org/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsiZGF0YSI6NTgwNDAzLCJwdXIiOiJibG9iX2lkIn19--a1ee54eff9ccd617cbf4fcb8fb901b979732c93a/range_rover_sardinia_cup_decision_03.pdf"
+  },
+  "lastCleanupDate": "2026-06-08"
 }

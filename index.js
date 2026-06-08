@@ -130,7 +130,9 @@ function deriveRrsEventIdFromUrl(url) {
   if (!u || RRS_URL_PLACEHOLDER.test(u)) {
     return "";
   }
-  const m = u.match(/\/(?:schedules|documents|decisions)\/(\d+)\/event\b/);
+  const m = u.match(
+    /\/(?:schedules|documents|decisions|questions|scoring_inquiries)\/(\d+)\/event\b/
+  );
   return m ? m[1] : "";
 }
 
@@ -151,7 +153,8 @@ const rrsEventId =
   normalize(process.env.RRS_EVENT_ID) ||
   deriveRrsEventIdFromUrl(process.env.RRS_URL) ||
   deriveRrsEventIdFromUrl(process.env.RRS_DOCUMENTS_URL) ||
-  deriveRrsEventIdFromUrl(process.env.RRS_DECISIONS_URL);
+  deriveRrsEventIdFromUrl(process.env.RRS_DECISIONS_URL) ||
+  deriveRrsEventIdFromUrl(process.env.RRS_SCORINGENQUIRIES_URL || "");
 const rrsSchedulesFromId = rrsEventId
   ? `${RRS_ORIGIN}/schedules/${rrsEventId}/event`
   : "";
@@ -166,6 +169,10 @@ const urlFromEnv = expandRrsUrlTemplate(process.env.RRS_URL, rrsEventId);
 const documentsFromEnv = expandRrsUrlTemplate(process.env.RRS_DOCUMENTS_URL, rrsEventId);
 const decisionsFromEnv = expandRrsUrlTemplate(process.env.RRS_DECISIONS_URL || "", rrsEventId);
 const questionsFromEnv = expandRrsUrlTemplate(process.env.RRS_QUESTIONS_URL || "", rrsEventId);
+const scoringEnquiriesFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_SCORINGENQUIRIES_URL || "",
+  rrsEventId
+);
 
 const CONFIG = {
   eventId: rrsEventId || null,
@@ -173,6 +180,9 @@ const CONFIG = {
   documentsUrl: documentsFromEnv || rrsDocumentsFromId,
   decisionsUrl: decisionsFromEnv || rrsDecisionsFromId,
   questionsUrl: questionsFromEnv || (rrsEventId ? `${RRS_ORIGIN}/questions/${rrsEventId}/event` : ""),
+  scoringEnquiriesUrl:
+    scoringEnquiriesFromEnv ||
+    (rrsEventId ? `${RRS_ORIGIN}/scoring_inquiries/${rrsEventId}/event` : ""),
   intervalMs: Number(process.env.POLL_INTERVAL_MS || 60_000),
   dataDir: resolvedDataDir,
   stateFile: path.join(resolvedDataDir, "state.json"),
@@ -205,6 +215,7 @@ const trelloCustomFieldsByBoard = new Map();
 const trelloCustomFieldsWarnedBoards = new Set();
 const trelloLabelsByBoard = new Map();
 const trelloHearingLabelWarnedBoards = new Set();
+const trelloDecidedLabelWarnedBoards = new Set();
 const trelloDecisionFieldWarnedBoards = new Set();
 const trelloFullDecisionCheckboxWarnedBoards = new Set();
 let trelloDocumentSyncSkipLogged = false;
@@ -510,6 +521,110 @@ function detectQuestionsChanges(previousRows, currentRows) {
     }
 
     if (questionFingerprint(prevRow) !== questionFingerprint(currentRow)) {
+      modified.push({
+        key,
+        before: prevRow,
+        after: currentRow,
+      });
+    }
+  }
+
+  for (const [key, prevRow] of previousMap.entries()) {
+    if (!currentMap.has(key)) {
+      removed.push(prevRow);
+    }
+  }
+
+  return { added, modified, removed };
+}
+
+function extractScoringInquiryRows(html) {
+  const $ = cheerio.load(html);
+  const rows = [];
+  const $table = $("#inquiry-scroller").first();
+  if (!$table.length) {
+    return rows;
+  }
+
+  const headerCells = $table
+    .find("thead tr th")
+    .map((__, th) => normalize($(th).text()).toLowerCase())
+    .get();
+
+  if (
+    !headerCells.some((c) => c.includes("no.")) ||
+    !headerCells.some((c) => c.includes("response"))
+  ) {
+    return rows;
+  }
+
+  $table.find("tbody tr").each((__, tr) => {
+    const $tds = $(tr).find("td");
+    if ($tds.length < 8) {
+      return;
+    }
+
+    const no = normalize($tds.eq(0).text());
+    if (!no) {
+      return;
+    }
+
+    const $pdfLink = $tds.find('a[href*=".pdf"], a[title*="PDF"]');
+    const pdfHref = normalize($pdfLink.attr("href"));
+
+    rows.push({
+      no,
+      date: normalize($tds.eq(1).text()),
+      course: normalize($tds.eq(2).text()),
+      race: normalize($tds.eq(3).text()),
+      competitor: normalize($tds.eq(4).text()),
+      posted: normalize($tds.eq(5).text()),
+      corrected: normalize($tds.eq(6).text()),
+      response: normalize($tds.eq(7).text()),
+      pdfUrl: pdfHref ? absolutizeRrsHref(pdfHref) : "",
+    });
+  });
+  return rows;
+}
+
+function scoringInquiryRowKey(row) {
+  return normalize(row.no);
+}
+
+function scoringInquiryFingerprint(row) {
+  return [
+    row.no,
+    row.date,
+    row.course,
+    row.race,
+    row.competitor,
+    row.posted,
+    row.corrected,
+    row.response,
+    row.pdfUrl,
+  ].join("||");
+}
+
+function detectScoringInquiryChanges(previousRows, currentRows) {
+  const previousMap = new Map(
+    previousRows.map((row) => [scoringInquiryRowKey(row), row])
+  );
+  const currentMap = new Map(
+    currentRows.map((row) => [scoringInquiryRowKey(row), row])
+  );
+
+  const added = [];
+  const modified = [];
+  const removed = [];
+
+  for (const [key, currentRow] of currentMap.entries()) {
+    const prevRow = previousMap.get(key);
+    if (!prevRow) {
+      added.push(currentRow);
+      continue;
+    }
+
+    if (scoringInquiryFingerprint(prevRow) !== scoringInquiryFingerprint(currentRow)) {
       modified.push({
         key,
         before: prevRow,
@@ -1206,6 +1321,46 @@ async function trelloRemoveCardLabel(cardId, labelId) {
   }
 }
 
+const DECIDED_TRELLO_LABEL_NAME = "Decided";
+
+async function trelloAddDecidedLabel(cardId, caseNoForLog) {
+  if (!CONFIG.trelloKey || !CONFIG.trelloToken || !cardId) {
+    return;
+  }
+  try {
+    const card = await trelloGetCard(cardId);
+    if (!card.idBoard) {
+      return;
+    }
+    const boardLabels = await trelloGetBoardLabels(card.idBoard);
+    const decidedLabelId = trelloFindLabelIdByNames(
+      boardLabels,
+      DECIDED_TRELLO_LABEL_NAME
+    );
+    if (!decidedLabelId) {
+      if (!trelloDecidedLabelWarnedBoards.has(card.idBoard)) {
+        console.warn(
+          `[WARN] Etiqueta "${DECIDED_TRELLO_LABEL_NAME}" no encontrada en Trello; créala en el tablero.`
+        );
+        trelloDecidedLabelWarnedBoards.add(card.idBoard);
+      }
+      return;
+    }
+    const onCard = await trelloGetCardLabels(cardId);
+    if (onCard.some((l) => l.id === decidedLabelId)) {
+      return;
+    }
+    await trelloAddCardLabel(cardId, decidedLabelId);
+    const label = caseNoForLog != null ? ` caso ${caseNoForLog}` : "";
+    console.log(`[TRELLO]${label}: etiqueta "${DECIDED_TRELLO_LABEL_NAME}" añadida`);
+  } catch (error) {
+    console.error(
+      `[TRELLO] Etiqueta ${DECIDED_TRELLO_LABEL_NAME} (caso ${caseNoForLog}):`,
+      error.message
+    );
+  }
+}
+
 async function trelloSyncHearingTypeLabels(cardId, row) {
   if (!CONFIG.trelloKey || !CONFIG.trelloToken || !cardId) {
     return;
@@ -1667,14 +1822,6 @@ async function handleRemovedRowTrello(
   decisionsDetailMap,
   fullDecisionSyncedByCase
 ) {
-  const decidedId = CONFIG.trelloDecidedListId;
-  if (!decidedId) {
-    console.warn(
-      `[TRELLO] Caso ${row.no} fuera de la web pero falta TRELLO_DECIDED_LIST_ID; no se mueve la tarjeta.`
-    );
-    return;
-  }
-
   const caseKey = hearingCaseKey(row.no);
   let decisionText = "";
   if (decisionsDetailMap) {
@@ -1695,12 +1842,12 @@ async function handleRemovedRowTrello(
   const bodyDesc = trelloCardDescriptionForRow(row, null, {
     decision: decisionText || undefined,
   });
-  const appendix = "\n\n---\nCaso eliminado del calendario RRS · movido a Decided";
+  const appendix = "\n\n---\nCaso eliminado del calendario RRS";
 
   try {
     const newDesc = `${bodyDesc.trim()}${appendix}`;
-    await trelloMoveCardToList(cardId, decidedId, newDesc);
-    await trelloSyncHearingTypeLabels(cardId, { no: row.no, type: "Other" });
+    await trelloUpdateCardNameDesc(cardId, undefined, newDesc);
+    await trelloAddDecidedLabel(cardId, row.no);
     if (decisionsDetailMap !== null && decisionsDetailMap !== undefined) {
       await trelloSyncDecisionCustomField(
         cardId,
@@ -1708,9 +1855,11 @@ async function handleRemovedRowTrello(
         row.no
       );
     }
-    console.log(`[TRELLO] Caso ${row.no}: tarjeta movida a Decided`);
+    console.log(
+      `[TRELLO] Caso ${row.no}: tarjeta actualizada (permanece en su lista; etiqueta Decided)`
+    );
   } catch (error) {
-    console.error(`[TRELLO] Caso ${row.no} al mover a Decided:`, error.message);
+    console.error(`[TRELLO] Caso ${row.no} al cerrar en Trello:`, error.message);
   }
 }
 
@@ -2026,6 +2175,143 @@ async function applyQuestionsTrelloCycle(previousState, currentRows, changes) {
   return trelloQuestionCards;
 }
 
+function scoringInquiryCardTitle(row) {
+  return `Scoring Enquiry nº ${normalize(row.no)}`;
+}
+
+function scoringInquiryCardDescription(row) {
+  return [
+    `Date: ${row.date || "-"}`,
+    `Course: ${row.course || "-"}`,
+    `Race: ${row.race || "-"}`,
+    `Competitor: ${row.competitor || "-"}`,
+    `Posted: ${row.posted || "-"}`,
+    `Corrected: ${row.corrected || "-"}`,
+    `Response: ${row.response || "-"}`,
+  ].join("\n");
+}
+
+async function trelloSyncScoringInquiryLabels(cardId, row) {
+  if (!CONFIG.trelloKey || !CONFIG.trelloToken || !cardId) return;
+  try {
+    const card = await trelloGetCard(cardId);
+    if (!card.idBoard) return;
+    const boardLabels = await trelloGetBoardLabels(card.idBoard);
+    const answeredId = trelloFindLabelIdByNames(boardLabels, "Answered");
+    if (!answeredId) return;
+
+    const wantAnswered = Boolean(normalize(row.response));
+    const onCard = await trelloGetCardLabels(cardId);
+    const hasAnswered = onCard.some((l) => l.id === answeredId);
+
+    if (wantAnswered && !hasAnswered) {
+      await trelloAddCardLabel(cardId, answeredId);
+    } else if (!wantAnswered && hasAnswered) {
+      await trelloRemoveCardLabel(cardId, answeredId);
+    }
+  } catch (error) {
+    console.error(`[TRELLO] Scoring Enquiry ${row.no} etiqueta Answered:`, error.message);
+  }
+}
+
+async function trelloCreateScoringInquiryCard(row) {
+  const url = `https://api.trello.com/1/cards?${trelloAuthParams().toString()}`;
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      idList: CONFIG.trelloQuestionsListId,
+      name: scoringInquiryCardTitle(row),
+      desc: scoringInquiryCardDescription(row),
+      pos: TRELLO_CARD_POS_TOP,
+    }),
+  });
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Trello create scoring enquiry card: ${response.status} ${bodyText}`);
+  }
+  const card = JSON.parse(bodyText);
+
+  if (row.pdfUrl) {
+    try {
+      await trelloAddCardAttachmentFromUrl(card.id, row.pdfUrl, "Scoring Enquiry PDF");
+    } catch (e) {
+      console.error(`[TRELLO] Error adjuntando PDF a Scoring Enquiry ${row.no}:`, e.message);
+    }
+  }
+  await trelloSyncScoringInquiryLabels(card.id, row);
+  return card;
+}
+
+async function trelloUpdateScoringInquiryCard(cardId, row) {
+  const url = `https://api.trello.com/1/cards/${encodeURIComponent(
+    cardId
+  )}?${trelloAuthParams().toString()}`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: scoringInquiryCardTitle(row),
+      desc: scoringInquiryCardDescription(row),
+      pos: TRELLO_CARD_POS_TOP,
+    }),
+  });
+  const bodyText = await response.text();
+  if (!response.ok) {
+    throw new Error(`Trello update scoring enquiry card: ${response.status} ${bodyText}`);
+  }
+
+  if (row.pdfUrl) {
+    try {
+      const attachments = await trelloGetCardAttachmentUrls(cardId);
+      if (!attachments.has(row.pdfUrl)) {
+        await trelloAddCardAttachmentFromUrl(cardId, row.pdfUrl, "Scoring Enquiry PDF");
+      }
+    } catch (e) {
+      console.error(`[TRELLO] Error sincronizando PDF en Scoring Enquiry ${row.no}:`, e.message);
+    }
+  }
+  await trelloSyncScoringInquiryLabels(cardId, row);
+}
+
+async function applyScoringInquiriesTrelloCycle(previousState, currentRows, changes) {
+  if (!CONFIG.trelloEnabled || !CONFIG.trelloQuestionsListId) {
+    return { ...(previousState?.trelloScoringInquiryCards || {}) };
+  }
+
+  const trelloScoringInquiryCards = { ...(previousState?.trelloScoringInquiryCards || {}) };
+
+  for (const row of changes.removed) {
+    const k = scoringInquiryRowKey(row);
+    delete trelloScoringInquiryCards[k];
+  }
+
+  for (const item of changes.modified) {
+    const cardId = trelloScoringInquiryCards[item.key];
+    if (!cardId) continue;
+    try {
+      await trelloUpdateScoringInquiryCard(cardId, item.after);
+      console.log(`[TRELLO] Scoring Enquiry actualizado (${item.key})`);
+    } catch (error) {
+      console.error(`[TRELLO] Actualizar Scoring Enquiry ${item.key}:`, error.message);
+    }
+  }
+
+  for (const row of currentRows) {
+    const k = scoringInquiryRowKey(row);
+    if (trelloScoringInquiryCards[k]) continue;
+    try {
+      const card = await trelloCreateScoringInquiryCard(row);
+      trelloScoringInquiryCards[k] = card.id;
+      console.log(`[TRELLO] Scoring Enquiry nueva tarjeta ${k} -> ${card.id}`);
+    } catch (error) {
+      console.error(`[TRELLO] Crear Scoring Enquiry ${k}:`, error.message);
+    }
+  }
+
+  return trelloScoringInquiryCards;
+}
+
 async function handleRemovedDocumentTrello(cardId, row) {
   const baseTitle = eventDocumentCardTitle(row);
   try {
@@ -2124,11 +2410,6 @@ function validateTrelloConfig() {
       "[WARN] Falta TRELLO_SCHEDULE_LIST_ID: no se podrá mover a Schedule cuando haya hora."
     );
   }
-  if (!CONFIG.trelloDecidedListId) {
-    console.warn(
-      "[WARN] Falta TRELLO_DECIDED_LIST_ID: al borrarse un caso de la web no se moverá la tarjeta a Decided."
-    );
-  }
   if (!CONFIG.trelloTimelimitListId) {
     console.warn(
       "[WARN] Falta TRELLO_TIMELIMIT_LIST_ID: no se crearán tarjetas de Protest Time Limit(s)."
@@ -2149,13 +2430,26 @@ async function applyTrelloCycle(
   fullDecisionSyncedByCase
 ) {
   if (!CONFIG.trelloEnabled) {
-    return migrateStringKeysByHearingCase(previousState?.trelloCards || {});
+    return {
+      trelloCards: migrateStringKeysByHearingCase(previousState?.trelloCards || {}),
+      trelloSyncedFingerprintByCase: migrateStringKeysByHearingCase(
+        previousState?.trelloSyncedFingerprintByCase || {}
+      ),
+    };
   }
   if (!CONFIG.trelloKey || !CONFIG.trelloToken || !CONFIG.trelloListId) {
-    return migrateStringKeysByHearingCase(previousState?.trelloCards || {});
+    return {
+      trelloCards: migrateStringKeysByHearingCase(previousState?.trelloCards || {}),
+      trelloSyncedFingerprintByCase: migrateStringKeysByHearingCase(
+        previousState?.trelloSyncedFingerprintByCase || {}
+      ),
+    };
   }
 
   const trelloCards = migrateStringKeysByHearingCase(previousState?.trelloCards || {});
+  const trelloSyncedFingerprintByCase = migrateStringKeysByHearingCase(
+    previousState?.trelloSyncedFingerprintByCase || {}
+  );
   const urlsByCase = hearingAttachmentUrlsByCase || {};
   const fdSynced = fullDecisionSyncedByCase || {};
 
@@ -2176,22 +2470,25 @@ async function applyTrelloCycle(
       await handleRemovedRowTrello(cardId, row, decisionsDetailMap, fdSynced);
     } else {
       console.warn(
-        `[TRELLO] Caso ${row.no} retirado de la web pero no hay tarjeta en trelloCards (clave ${k}); no se mueve a Decided.`
+        `[TRELLO] Caso ${row.no} retirado de la web pero no hay tarjeta en trelloCards (clave ${k}); no se actualiza en Trello.`
       );
     }
     delete trelloCards[k];
+    delete trelloSyncedFingerprintByCase[k];
   }
 
+  const modifiedCaseKeys = new Set(
+    (changes.modified || []).map((item) =>
+      hearingCaseKey(item.after?.no || item.before?.no)
+    )
+  );
+
   for (const item of changes.modified) {
-    const cardId = trelloCards[item.no];
-    if (!cardId) {
-      continue;
-    }
-    try {
-      await trelloApplyRowToCard(cardId, item.after, urlsByCase);
-      console.log(`[TRELLO] Tarjeta actualizada para caso ${item.no}`);
-    } catch (error) {
-      console.error(`[TRELLO] Actualizar caso ${item.no}:`, error.message);
+    const k = hearingCaseKey(item.after?.no || item.before?.no);
+    if (!trelloCards[k]) {
+      console.warn(
+        `[TRELLO] Caso ${item.after?.no || item.before?.no} modificado en RRS pero sin tarjeta (clave ${k}); se creará si sigue en la web.`
+      );
     }
   }
 
@@ -2204,12 +2501,35 @@ async function applyTrelloCycle(
       const card = await trelloCreateCard(row);
       trelloCards[k] = card.id;
       console.log(`[TRELLO] Tarjeta creada para caso ${row.no} -> ${card.id}`);
-      await trelloSyncAmazingFields(card.id, row);
-      await trelloSyncHearingTypeLabels(card.id, row);
-      await trelloSyncCardListForRow(card.id, row);
-      await trelloSyncHearingLinkAttachments(card.id, row, urlsByCase);
     } catch (error) {
       console.error(`[TRELLO] Crear caso ${row.no}:`, error.message);
+    }
+  }
+
+  for (const row of currentRows) {
+    const k = hearingCaseKey(row.no);
+    const cardId = trelloCards[k];
+    if (!cardId) {
+      continue;
+    }
+    const fp = rowFingerprint(row);
+    const needsSync =
+      modifiedCaseKeys.has(k) || trelloSyncedFingerprintByCase[k] !== fp;
+    if (!needsSync) {
+      continue;
+    }
+    try {
+      await trelloApplyRowToCard(cardId, row, urlsByCase);
+      trelloSyncedFingerprintByCase[k] = fp;
+      if (modifiedCaseKeys.has(k)) {
+        console.log(`[TRELLO] Tarjeta actualizada para caso ${row.no}`);
+      } else {
+        console.log(
+          `[TRELLO] Tarjeta resincronizada para caso ${row.no} (estado RRS y Trello desalineados)`
+        );
+      }
+    } catch (error) {
+      console.error(`[TRELLO] Sincronizar caso ${row.no}:`, error.message);
     }
   }
 
@@ -2228,7 +2548,7 @@ async function applyTrelloCycle(
     }
   }
 
-  return trelloCards;
+  return { trelloCards, trelloSyncedFingerprintByCase };
 }
 
 function changedFields(before, after) {
@@ -2450,6 +2770,7 @@ async function runMonitorCycle() {
   const previousTimeLimits = previousState?.timeLimitRows || [];
   const previousDocumentRows = previousState?.documentRows || [];
   const previousQuestionRows = previousState?.questionRows || [];
+  const previousScoringInquiryRows = previousState?.scoringInquiryRows || [];
 
   let documentRowsForState = previousDocumentRows;
   let documentChanges = { added: [], modified: [], removed: [] };
@@ -2478,6 +2799,24 @@ async function runMonitorCycle() {
       console.error("[QUESTIONS]", error.message);
       questionRowsForState = previousQuestionRows;
       questionChanges = { added: [], modified: [], removed: [] };
+    }
+  }
+
+  let scoringInquiryRowsForState = previousScoringInquiryRows;
+  let scoringInquiryChanges = { added: [], modified: [], removed: [] };
+  if (normalize(CONFIG.scoringEnquiriesUrl)) {
+    try {
+      const siHtml = await fetchHtml(CONFIG.scoringEnquiriesUrl);
+      const currentScoringInquiryRows = extractScoringInquiryRows(siHtml);
+      scoringInquiryRowsForState = currentScoringInquiryRows;
+      scoringInquiryChanges = detectScoringInquiryChanges(
+        previousScoringInquiryRows,
+        currentScoringInquiryRows
+      );
+    } catch (error) {
+      console.error("[SCORING_INQUIRIES]", error.message);
+      scoringInquiryRowsForState = previousScoringInquiryRows;
+      scoringInquiryChanges = { added: [], modified: [], removed: [] };
     }
   }
 
@@ -2511,26 +2850,36 @@ async function runMonitorCycle() {
     questionChanges.added.length > 0 ||
     questionChanges.modified.length > 0 ||
     questionChanges.removed.length > 0;
+  const hasScoringInquiryChanges =
+    scoringInquiryChanges.added.length > 0 ||
+    scoringInquiryChanges.modified.length > 0 ||
+    scoringInquiryChanges.removed.length > 0;
   const hasChanges =
     hasHearingChanges ||
     hasTimeLimitChanges ||
     hasDocumentChanges ||
-    hasQuestionChanges;
+    hasQuestionChanges ||
+    hasScoringInquiryChanges;
 
   let trelloCards = migrateStringKeysByHearingCase(previousState?.trelloCards || {});
+  let trelloSyncedFingerprintByCase = migrateStringKeysByHearingCase(
+    previousState?.trelloSyncedFingerprintByCase || {}
+  );
   if (
     CONFIG.trelloEnabled &&
     CONFIG.trelloKey &&
     CONFIG.trelloToken &&
     CONFIG.trelloListId
   ) {
-    trelloCards = await applyTrelloCycle(
+    const trelloResult = await applyTrelloCycle(
       previousState,
       currentRows,
       changes,
       hearingAttachmentUrlsByCase,
       fullDecisionSyncedByCase
     );
+    trelloCards = trelloResult.trelloCards;
+    trelloSyncedFingerprintByCase = trelloResult.trelloSyncedFingerprintByCase;
   }
 
   let trelloTimeLimitCards = { ...(previousState?.trelloTimeLimitCards || {}) };
@@ -2560,6 +2909,15 @@ async function runMonitorCycle() {
     );
   }
 
+  let trelloScoringInquiryCards = { ...(previousState?.trelloScoringInquiryCards || {}) };
+  if (CONFIG.trelloEnabled && CONFIG.trelloKey && CONFIG.trelloToken) {
+    trelloScoringInquiryCards = await applyScoringInquiriesTrelloCycle(
+      previousState,
+      scoringInquiryRowsForState,
+      scoringInquiryChanges
+    );
+  }
+
   const snapshot = {
     timestamp,
     rowCount: currentRows.length,
@@ -2570,10 +2928,14 @@ async function runMonitorCycle() {
     documentRows: documentRowsForState,
     questionRowCount: questionRowsForState.length,
     questionRows: questionRowsForState,
+    scoringInquiryRowCount: scoringInquiryRowsForState.length,
+    scoringInquiryRows: scoringInquiryRowsForState,
     trelloCards,
+    trelloSyncedFingerprintByCase,
     trelloTimeLimitCards,
     trelloDocumentCards,
     trelloQuestionCards,
+    trelloScoringInquiryCards,
     hearingAttachmentUrlsByCase,
     fullDecisionSyncedByCase,
   };
@@ -2582,7 +2944,7 @@ async function runMonitorCycle() {
 
   if (!previousState) {
     console.log(
-      `[INIT] Estado inicial: ${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas.`
+      `[INIT] Estado inicial: ${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas, ${scoringInquiryRowsForState.length} scoring enquiries.`
     );
   }
 
@@ -2593,16 +2955,18 @@ async function runMonitorCycle() {
       timeLimitChanges,
       documentChanges,
       questionChanges,
+      scoringInquiryChanges,
       currentRowCount: currentRows.length,
       currentTimeLimitCount: currentTimeLimits.length,
       currentDocumentCount: documentRowsForState.length,
       currentQuestionCount: questionRowsForState.length,
+      currentScoringInquiryCount: scoringInquiryRowsForState.length,
       ...(previousState ? {} : { baseline: true }),
     };
 
     await appendJsonLine(CONFIG.changesFile, event);
     console.log(
-      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length} | Questions +${questionChanges.added.length} ~${questionChanges.modified.length} -${questionChanges.removed.length}`
+      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length} | Questions +${questionChanges.added.length} ~${questionChanges.modified.length} -${questionChanges.removed.length} | Scoring +${scoringInquiryChanges.added.length} ~${scoringInquiryChanges.modified.length} -${scoringInquiryChanges.removed.length}`
     );
 
     const message = formatTelegramMessage(
@@ -2620,7 +2984,7 @@ async function runMonitorCycle() {
     }
   } else if (previousState) {
     console.log(
-      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas)`
+      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas, ${scoringInquiryRowsForState.length} scoring enquiries)`
     );
   }
 
@@ -2648,6 +3012,9 @@ async function main() {
   }
   if (CONFIG.questionsUrl) {
     console.log(`[START] Q&A Questions RRS -> ${CONFIG.questionsUrl}`);
+  }
+  if (CONFIG.scoringEnquiriesUrl) {
+    console.log(`[START] Scoring Inquiries RRS -> ${CONFIG.scoringEnquiriesUrl}`);
   }
 
   const execute = async () => {

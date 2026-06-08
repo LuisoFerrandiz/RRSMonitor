@@ -65,26 +65,8 @@
       "dates": ["2026-06-03"],
       "windows": [
         {
-          "name": "Dia 3 00:00-09:00",
+          "name": "Todo el dia",
           "start": "00:00",
-          "end": "09:00",
-          "frequencyMinutes": 10
-        },
-        {
-          "name": "Dia 3 09:00-18:00",
-          "start": "09:00",
-          "end": "18:00",
-          "frequencyMinutes": 5
-        },
-        {
-          "name": "Dia 3 18:00-21:00",
-          "start": "18:00",
-          "end": "21:00",
-          "frequencyMinutes": 1
-        },
-        {
-          "name": "Dia 3 21:00-24:00",
-          "start": "21:00",
           "end": "24:00",
           "frequencyMinutes": 10
         }
@@ -95,20 +77,32 @@
       "dates": ["2026-06-04"],
       "windows": [
         {
-          "name": "Dia 4 00:00-06:00",
+          "name": "Dia 4 00:00-14:00",
           "start": "00:00",
-          "end": "06:00",
+          "end": "14:00",
           "frequencyMinutes": 10
         },
         {
-          "name": "Dia 4 06:00-10:00",
-          "start": "06:00",
-          "end": "10:00",
+          "name": "Dia 4 14:00-15:00",
+          "start": "14:00",
+          "end": "15:00",
+          "frequencyMinutes": 3
+        },
+        {
+          "name": "Dia 4 15:00-18:00",
+          "start": "15:00",
+          "end": "18:00",
           "frequencyMinutes": 1
         },
         {
-          "name": "Dia 4 10:00-24:00",
-          "start": "10:00",
+          "name": "Dia 4 18:00-20:00",
+          "start": "18:00",
+          "end": "20:00",
+          "frequencyMinutes": 3
+        },
+        {
+          "name": "Dia 4 20:00-24:00",
+          "start": "20:00",
           "end": "24:00",
           "frequencyMinutes": 10
         }

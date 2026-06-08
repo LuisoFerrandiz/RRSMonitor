@@ -1,6 +1,7 @@
 const path = require("path");
 const fs = require("fs/promises");
 const { spawn } = require("child_process");
+const { performCleanup } = require('./cleanup');
 
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
@@ -282,6 +283,23 @@ function runMonitorOnce() {
 
 async function main() {
   const { weekday, dateKey, minutesOfDay } = getZonedParts();
+
+  // Limpieza diaria una vez al día
+  const STATE_FILE = path.join(DATA_DIR, "state.json");
+  try {
+    const state = await readJson(STATE_FILE, {});
+    const today = new Date().toISOString().split('T')[0];
+    if (state.lastCleanupDate !== today) {
+      const historyPath = path.join(DATA_DIR, "history.jsonl");
+      const logPath = path.join(DATA_DIR, "scheduler.log");
+      await performCleanup(historyPath, logPath);
+      state.lastCleanupDate = today;
+      await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
+    }
+  } catch (error) {
+    console.error("[SCHEDULER] Error durante la limpieza diaria:", error.message);
+  }
+
   const plans = parseScheduleConfig(await readJson(SCHEDULE_FILE, null));
   if (!plans?.length) {
     console.error(`[SCHEDULER] ${SCHEDULE_FILE} vacio o invalido.`);
