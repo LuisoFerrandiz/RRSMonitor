@@ -869,63 +869,70 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 </div>
                 <button id="backupModalClose" type="button" class="text-xl leading-none px-2" style="color: var(--rrs-muted);">&times;</button>
             </div>
-            <div class="p-5 space-y-4 overflow-y-auto custom-scrollbar">
-                <div class="backup-live-only border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-file-archive rrs-icon-primary mt-1"></i>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold" style="color: var(--rrs-text);">Single HTML file</h3>
-                            <p class="text-xs mt-1" style="color: var(--rrs-muted);">Download the full dashboard (history, kanban, labels, judges) as one file for offline viewing.</p>
-                            <button id="backupExportHtmlBtn" type="button" class="rrs-btn-primary mt-3 px-4 py-2 text-sm rounded-lg font-medium">
-                                Download HTML
+            <div class="p-5 overflow-y-auto custom-scrollbar">
+                <div class="grid grid-cols-2 gap-3">
+                    <!-- Row 1: Export HTML | Export JSON -->
+                    <div class="backup-live-only border rounded-lg p-3" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-download text-blue-500 text-sm"></i>
+                                <h3 class="text-xs font-bold" style="color: var(--rrs-text);">Export HTML</h3>
+                            </div>
+                            <p class="text-xs" style="color: var(--rrs-muted);">Download single file</p>
+                            <button id="backupExportHtmlBtn" type="button" class="rrs-btn-primary mt-2 px-3 py-1.5 text-xs rounded-md font-medium">
+                                Download
                             </button>
                         </div>
                     </div>
-                </div>
-                <div class="backup-archive-only hidden border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-primary-soft);">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-file-archive text-blue-500 mt-1"></i>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold text-gray-800">Offline archive</h3>
-                            <p class="text-xs text-gray-500 mt-1">You are viewing the archived HTML. Download the JSON package to restore the system on another deployment.</p>
-                            <button id="backupExportJsonBtn" type="button" class="mt-3 px-4 py-2 text-sm rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
-                                Download JSON package
+                    <div class="backup-archive-only hidden border rounded-lg p-3" style="border-color: var(--rrs-border); background: var(--rrs-primary-soft);">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-file-export text-blue-500 text-sm"></i>
+                                <h3 class="text-xs font-bold text-gray-800">Export JSON</h3>
+                            </div>
+                            <p class="text-xs text-gray-500">JSON package</p>
+                            <button id="backupExportJsonBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
+                                Download
                             </button>
                         </div>
                     </div>
-                </div>
-                <div class="backup-live-only border border-gray-100 rounded-lg p-4">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-upload text-emerald-500 mt-1"></i>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold text-gray-800">Restore backup</h3>
-                            <p class="text-xs text-gray-500 mt-1">Load a JSON package exported from the archived HTML or from another deployment.</p>
-                            <button id="backupImportBtn" type="button" class="mt-3 px-4 py-2 text-sm rounded-lg border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium">
+
+                    <!-- Row 2: Restore | Flush History -->
+                    <div class="backup-live-only border border-gray-100 rounded-lg p-3">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-upload text-emerald-500 text-sm"></i>
+                                <h3 class="text-xs font-bold text-gray-800">Restore</h3>
+                            </div>
+                            <p class="text-xs text-gray-500">Load JSON backup</p>
+                            <button id="backupImportBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium">
                                 Select file…
                             </button>
                         </div>
                     </div>
-                </div>
-                <div class="border border-blue-100 rounded-lg p-4 bg-blue-50/30">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-arrow-down text-blue-400 mt-1"></i>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold text-gray-800">Force flush</h3>
-                            <p class="text-xs text-gray-500 mt-1">Writes buffered history to disk immediately. Automatic flush occurs every 30 minutes.</p>
-                            <button id="backupFlushHistoryBtn" type="button" class="mt-3 px-4 py-2 text-sm rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium">
-                                <i class="fas fa-arrow-down mr-2" id="backupFlushHistoryIcon"></i>Flush History
+                    <div class="border border-blue-100 rounded-lg p-3 bg-blue-50/30">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-arrow-down text-blue-400 text-sm"></i>
+                                <h3 class="text-xs font-bold text-gray-800">Flush History</h3>
+                            </div>
+                            <p class="text-xs text-gray-500">Write now</p>
+                            <button id="backupFlushHistoryBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium">
+                                <i class="fas fa-arrow-down mr-1" id="backupFlushHistoryIcon"></i>Flush
                             </button>
                         </div>
                     </div>
-                </div>
-                <div class="backup-live-only border border-red-100 rounded-lg p-4 bg-red-50/30">
-                    <div class="flex items-start gap-3">
-                        <i class="fas fa-trash-alt text-red-400 mt-1"></i>
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold text-gray-800">New event</h3>
-                            <p class="text-xs text-gray-500 mt-1">Clears history, changes, state, and logs. Leaves the system blank to start from scratch.</p>
-                            <button id="backupResetBtn" type="button" class="mt-3 px-4 py-2 text-sm rounded-lg border border-red-200 text-red-600 hover:bg-red-50 font-medium">
-                                Full reset
+
+                    <!-- Row 3: New event -->
+                    <div class="backup-live-only border border-red-100 rounded-lg p-3 bg-red-50/30">
+                        <div class="flex flex-col gap-2">
+                            <div class="flex items-center gap-2">
+                                <i class="fas fa-trash-alt text-red-400 text-sm"></i>
+                                <h3 class="text-xs font-bold text-gray-800">New event</h3>
+                            </div>
+                            <p class="text-xs text-gray-500">Clear all</p>
+                            <button id="backupResetBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-red-200 text-red-600 hover:bg-red-50 font-medium">
+                                Reset
                             </button>
                         </div>
                     </div>

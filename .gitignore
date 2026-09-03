@@ -1,7 +1,18 @@
 node_modules/
 .env
 *.log
-# Otros archivos temporales o de sistema
+# Archivos de datos de runtime (no sincronizar)
+data/*.jsonl
+data/kanban.json
+data/users.json
+data/users-activity.jsonl
+data/monitor-config.json
+data/history-last-flush.json
+data/scheduler-last-run.json
+data/backup_*/
+# Archivos temporales o de sistema
 .DS_Store
 Thumbs.db
 *_DownloadConflict*
+~syncthing~*
+.sync-conflict-*
