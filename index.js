@@ -962,6 +962,57 @@ function extractDecisionCellDetail($, $td) {
  * Hearing Decisions page: columns No. … Decision.
  * Returns Map(caseKey -> { text, fullDecisionUrl }). Last row wins if duplicates.
  */
+/**
+ * Convert relative URL to absolute URL
+ */
+function toAbsoluteUrl(url, baseOrigin = "https://www.racingrulesofsailing.org") {
+  if (!url) return "";
+  if (/^https?:\/\//.test(url)) return url;
+  if (url.startsWith("/")) return baseOrigin + url;
+  return baseOrigin + "/" + url;
+}
+
+/**
+ * Fetch all pages of decisions (handles pagination).
+ * Returns combined HTML from all pages.
+ */
+async function fetchAllDecisionPages(baseUrl) {
+  if (!baseUrl) return "";
+
+  let allHtml = "";
+  let pageNum = 1;
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const pageUrl = baseUrl.includes("?")
+      ? `${baseUrl}&page=${pageNum}`
+      : `${baseUrl}?page=${pageNum}`;
+
+    try {
+      const html = await fetchHtml(pageUrl);
+      const $ = cheerio.load(html);
+
+      // Extract main content (table)
+      const table = $("table").first();
+      if (table.length === 0 && pageNum === 1) {
+        return html; // Return original if no table found
+      }
+      allHtml += html;
+
+      // Check if there's a next page
+      const nextLink = $("a[rel='next'], a:contains('Next')").first();
+      hasNextPage = nextLink.length > 0;
+      pageNum++;
+    } catch (error) {
+      if (pageNum === 1) throw error; // Always throw error on first page
+      console.warn(`[DECISIONS] Error fetching page ${pageNum}: ${error.message}`);
+      break;
+    }
+  }
+
+  return allHtml;
+}
+
 function extractDecisionsDetailByCaseKey(html) {
   const $ = cheerio.load(html);
   const map = new Map();
@@ -975,7 +1026,12 @@ function extractDecisionsDetailByCaseKey(html) {
       .get();
 
     const noIdx = headerCells.findIndex((c) => c.includes("no."));
+    const typeIdx = headerCells.findIndex((c) => c.includes("type"));
+    const raceIdx = headerCells.findIndex((c) => c.includes("race"));
+    const initiatorIdx = headerCells.findIndex((c) => c.includes("initiator"));
+    const respondentIdx = headerCells.findIndex((c) => c.includes("respondent"));
     const decIdx = headerCells.findIndex((c) => c.includes("decision"));
+
     if (noIdx < 0 || decIdx < 0) {
       return;
     }
@@ -998,9 +1054,28 @@ function extractDecisionsDetailByCaseKey(html) {
         const key = hearingCaseKey(rawNo);
         const $decTd = $tds.eq(decIdx);
         const { text, fullDecisionUrl } = extractDecisionCellDetail($, $decTd);
+
+        // Extract additional fields
+        const typeTd = typeIdx >= 0 ? $tds.eq(typeIdx) : null;
+        const typeText = typeTd ? normalize(typeTd.text()) : "";
+        const hearingRequestUrl = typeTd ? toAbsoluteUrl(typeTd.find("a").attr("href") || "") : "";
+
+        const race = raceIdx >= 0 ? normalize($tds.eq(raceIdx).text()) : "";
+        const initiator = initiatorIdx >= 0 ? normalize($tds.eq(initiatorIdx).text()) : "";
+        const respondents = respondentIdx >= 0 ? normalize($tds.eq(respondentIdx).text()) : "";
+
+        // Extract Final Decision link (look for PDF or other links in decision cell)
+        const finalDecisionUrl = toAbsoluteUrl($decTd.find("a").attr("href") || "");
+
         map.set(key, {
           text,
           fullDecisionUrl: fullDecisionUrl || "",
+          type: typeText,
+          hearingRequestUrl: hearingRequestUrl || "",
+          race,
+          initiator,
+          respondents,
+          finalDecisionUrl: finalDecisionUrl || "",
         });
       });
   });
@@ -1033,13 +1108,21 @@ function buildDecisionRowsFromState(decisionsMap, currentRows, previousRows) {
   const out = [];
   for (const [caseKey, detail] of decisionsMap.entries()) {
     const row = cur.get(caseKey) || prev.get(caseKey) || {};
+    // Use fields from decisionsMap first, fallback to row data
+    const hearingLinks = [];
+    if (detail.hearingRequestUrl) {
+      hearingLinks.push({ text: "Hearing Request Form", href: detail.hearingRequestUrl });
+    }
+    if (detail.finalDecisionUrl && detail.finalDecisionUrl !== detail.hearingRequestUrl) {
+      hearingLinks.push({ text: "Final Decision", href: detail.finalDecisionUrl });
+    }
     out.push({
       no: String(row.no || caseKey),
-      type: row.type || "",
-      hearingLinks: row.hearingLinks || [],
-      race: row.race || "",
-      initiator: row.initiator || "",
-      respondents: row.respondents || "",
+      type: detail.type || row.type || "",
+      hearingLinks: hearingLinks.length > 0 ? hearingLinks : row.hearingLinks || [],
+      race: detail.race || row.race || "",
+      initiator: detail.initiator || row.initiator || "",
+      respondents: detail.respondents || row.respondents || "",
       schedule: row.schedule || "",
       location: row.location || "",
       text: detail.text || "",
@@ -2890,7 +2973,7 @@ async function applyTrelloCycle(
   let decisionsDetailMap = null;
   if (normalize(CONFIG.decisionsUrl)) {
     try {
-      const decHtml = await fetchHtml(CONFIG.decisionsUrl);
+      const decHtml = await fetchAllDecisionPages(CONFIG.decisionsUrl);
       decisionsDetailMap = extractDecisionsDetailByCaseKey(decHtml);
     } catch (error) {
       console.warn(`[DECISIONS] ${error.message}`);
