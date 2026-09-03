@@ -1770,6 +1770,14 @@ function penaltyKey(row) {
     ].join("||");
 }
 
+function retirementRows() {
+    return stateData.retirementRows || [];
+}
+
+function penaltyReportRows() {
+    return stateData.penaltyReportRows || [];
+}
+
 function crewSubstitutionRows() {
     return stateData.crewSubstitutionRows || stateData.crewSubmissionRows || [];
 }
@@ -2866,10 +2874,14 @@ function updateStats() {
             : "Documents";
     setT('stat-documents-line', `${documentsLabel} (${xy.documents.current}/${xy.documents.total})`);
     setT('stat-sailti-results-line', 'Results SAILTI');
-    setT('stat-penalties-line', `On the water penalties (${(stateData.penaltyRows || []).filter((r) => r.source === "penalties").length})`);
-    setT('stat-penalty-reports-line', `Penalty Reports (${(stateData.penaltyRows || []).filter((r) => r.source === "penalty_reports" || r.source === "retirements").length})`);
-    setT('stat-crew-substitutions-line', `Crew Substitutions (${xy.crewSubstitutions.current})`);
-    setT('stat-equipment-substitutions-line', `Equipment Substitutions (${xy.equipmentSubstitutions.current})`);
+    setT('stat-penalties-line', `On the water penalties (${(stateData.onWaterPenaltyRows || stateData.penaltyRows || []).length})`);
+    setT('stat-penalty-reports-line', `Penalty Reports (${(stateData.penaltyReportRows || []).length})`);
+    const retirementCount = (stateData.retirementRows || []).length;
+    if (retirementCount > 0 || isMonitorFeatureEnabled("retirementsEnabled")) {
+      setT('stat-retirements-line', `Retirements (${retirementCount})`);
+    }
+    setT('stat-crew-substitutions-line', `Crew Substitutions (${(stateData.crewSubstitutionRows || []).length})`);
+    setT('stat-equipment-substitutions-line', `Equipment Substitutions (${(stateData.equipmentSubstitutionRows || []).length})`);
     applyFeatureVisibility(window.dashboardData?.monitorConfig);
     if (currentTab === "sailtiResults") renderSailtiResultsEmbed();
     
@@ -3018,6 +3030,7 @@ function renderTable() {
     else if (currentTab === 'documents') renderDocumentsTable();
     else if (currentTab === 'penalties') renderPenaltiesTable();
     else if (currentTab === 'penaltyReports') renderPenaltyReportsTable();
+    else if (currentTab === 'retirements') renderRetirementssTable();
     else if (currentTab === 'crewSubstitutions') renderCrewSubmissionsTable();
     else if (currentTab === 'equipmentSubstitutions') renderEquipmentSubmissionsTable();
     else if (currentTab === 'qa') renderQaTable();
@@ -3282,32 +3295,26 @@ function renderPenaltiesTable() {
 
 function renderPenaltyReportsTable() {
     const cols = [
-        { label: 'DATE', width: 'col-xs', sortKey: 'date' },
-        { label: 'BOAT', width: 'col-sm', sortKey: 'boat' },
-        { label: 'SKIPPER', width: 'col-md', sortKey: 'skipper' },
-        { label: 'NAT', width: 'col-xs', align: 'center', sortKey: 'nationality' },
-        { label: 'CLASS', width: 'col-sm', sortKey: 'class' },
-        { label: 'SAIL NO', width: 'col-xs', align: 'center', sortKey: 'sailNo' },
-        { label: 'TYPE', width: 'col-xs', align: 'center', sortKey: 'source' },
-        { label: 'PENALTY', width: 'col-xs', align: 'center', sortKey: 'penalty' },
-        { label: 'DETAILS', width: 'col-md', sortKey: 'details' },
+        { label: 'NO', width: 'col-xs', sortKey: 'no' },
+        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
+        { label: 'RACE', width: 'col-xs', sortKey: 'race' },
+        { label: 'LEG', width: 'col-xs', sortKey: 'leg' },
+        { label: 'BOAT', width: 'col-md', sortKey: 'boat' },
+        { label: 'BOATS FOULED', width: 'col-md', sortKey: 'boatsFouled' },
+        { label: 'PENALTY TAKEN', width: 'col-md', sortKey: 'penaltyTaken' },
     ];
     tableHead.innerHTML = buildTableHead(cols, 'penaltyReports');
 
     const search = searchInput?.value?.trim() || "";
-    let rows = (stateData.penaltyRows || []).filter((row) =>
-        row.source === "penalty_reports" || row.source === "retirements"
-    ).filter((row) =>
+    let rows = penaltyReportRows().filter((row) =>
         matchesSearch([
+            row.no,
             row.date,
+            row.race,
+            row.leg,
             row.boat,
-            row.skipper,
-            row.nationality,
-            row.class,
-            row.sailNo,
-            row.source,
-            row.penalty,
-            row.details,
+            row.boatsFouled,
+            row.penaltyTaken,
         ], search)
     );
 
@@ -3315,40 +3322,86 @@ function renderPenaltyReportsTable() {
         rows,
         'penaltyReports',
         {
+            no: (r) => r.no,
             date: (r) => r.date,
+            race: (r) => r.race,
+            leg: (r) => r.leg,
             boat: (r) => r.boat,
-            skipper: (r) => r.skipper,
-            nationality: (r) => r.nationality,
-            class: (r) => r.class,
-            sailNo: (r) => r.sailNo,
-            source: (r) => r.source,
-            penalty: (r) => r.penalty,
-            details: (r) => r.details,
+            boatsFouled: (r) => r.boatsFouled,
+            penaltyTaken: (r) => r.penaltyTaken,
         },
-        {}
+        { no: 'number' }
     );
 
     if (!rows.length) {
-        setEmptyState("No penalty reports or retirements", cols.length);
+        setEmptyState("No penalty reports", cols.length);
         return;
     }
 
     tableBody.innerHTML = rows.map((row) => {
-        const typeLabel = row.source === "retirements" ? "Retired" : "Report";
-        const typeClass = row.source === "retirements"
-            ? "px-4 py-3 text-sm text-center font-semibold text-red-600"
-            : "px-4 py-3 text-sm text-center font-semibold text-amber-600";
+        const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, `penalty-report-${row.no}`);
         return `
         <tr class="hover:bg-gray-50">
+            ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
+            ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
+            ${cell(row.race, "px-4 py-3 text-sm text-center")}
+            ${cell(row.leg, "px-4 py-3 text-sm text-center")}
+            ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
+            ${cell(row.boatsFouled, "px-4 py-3 text-sm")}
+            ${cell(row.penaltyTaken, "px-4 py-3 text-sm")}${downloadHtml}
+        </tr>
+    `;
+    }).join('');
+}
+
+function renderRetirementssTable() {
+    const cols = [
+        { label: 'NO', width: 'col-xs', sortKey: 'no' },
+        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
+        { label: 'BOAT', width: 'col-md', sortKey: 'boat' },
+        { label: 'TYPE', width: 'col-sm', sortKey: 'type' },
+        { label: 'RACE NO', width: 'col-xs', sortKey: 'raceNo' },
+    ];
+    tableHead.innerHTML = buildTableHead(cols, 'retirements');
+
+    const search = searchInput?.value?.trim() || "";
+    let rows = retirementRows().filter((row) =>
+        matchesSearch([
+            row.no,
+            row.date,
+            row.boat,
+            row.type,
+            row.raceNo,
+        ], search)
+    );
+
+    rows = sortItems(
+        rows,
+        'retirements',
+        {
+            no: (r) => r.no,
+            date: (r) => r.date,
+            boat: (r) => r.boat,
+            type: (r) => r.type,
+            raceNo: (r) => r.raceNo,
+        },
+        { no: 'number', raceNo: 'number' }
+    );
+
+    if (!rows.length) {
+        setEmptyState("No retirements", cols.length);
+        return;
+    }
+
+    tableBody.innerHTML = rows.map((row) => {
+        const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, `retirement-${row.no}`);
+        return `
+        <tr class="hover:bg-gray-50">
+            ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
-            ${cell(row.skipper, "px-4 py-3 text-sm")}
-            ${cell(row.nationality, "px-4 py-3 text-sm text-center")}
-            ${cell(row.class, "px-4 py-3 text-sm")}
-            ${cell(row.sailNo, "px-4 py-3 text-sm font-semibold")}
-            ${cell(typeLabel, typeClass)}
-            ${cell(row.penalty, "px-4 py-3 text-sm text-center font-semibold")}
-            ${cell(row.details, "px-4 py-3 text-sm")}
+            ${cell(row.type, "px-4 py-3 text-sm")}
+            ${cell(row.raceNo, "px-4 py-3 text-sm text-center")}${downloadHtml}
         </tr>
     `;
     }).join('');

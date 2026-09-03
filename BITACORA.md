@@ -4,6 +4,52 @@
 
 ---
 
+## 2026-09-03 T~— Dashboard polish: renderers para retirements y penaltyReports
+
+### Resumen
+Finalizada la integración del dashboard: stat counters y table renderers ahora consumen los arrays separados del estado
+(retirementRows, penaltyReportRows, onWaterPenaltyRows, crewSubstitutionRows, equipmentSubstitutionRows)
+en lugar del modelo previo (penaltyRows combinado filtrado por source).
+
+### Cambios en `data/viewer.html`
+
+1. **Helper functions (línea ~1775):**
+   - `retirementRows()`: devuelve `stateData.retirementRows || []`
+   - `penaltyReportRows()`: devuelve `stateData.penaltyReportRows || []`
+
+2. **`updateStats()` (línea ~2869-2876):**
+   - On-water penalties: `(stateData.onWaterPenaltyRows || stateData.penaltyRows || []).length` (fallback para compatibilidad)
+   - Penalty Reports: `(stateData.penaltyReportRows || []).length`
+   - Retirements: `(stateData.retirementRows || []).length` (solo visible si `retirementCount > 0` o feature enabled)
+   - Crew Subs: `(stateData.crewSubstitutionRows || []).length`
+   - Equipment Subs: `(stateData.equipmentSubstitutionRows || []).length`
+
+3. **`renderPenaltyReportsTable()` (~línea 3287):** Reemplazado completamente
+   - Cambio: De filtrar `penaltyRows` por `source === "penalty_reports"` a usar `penaltyReportRows()`
+   - Columnas: No. · Date · Race · Leg · Boat · Boats Fouled · Penalty Taken (alineadas con RRS HTML real)
+   - PDF link: `row.actionsPdfUrl`
+
+4. **`renderRetirementssTable()` (nueva, ~línea 3357):**
+   - Columnas: No. · Date · Boat · Type · Race No.
+   - Datos: desde `retirementRows()`
+   - Sorting: `no` y `raceNo` como números
+
+5. **`switchTab()` (~línea 3025):** Añadida línea faltante
+   - `else if (currentTab === 'retirements') renderRetirementssTable();`
+   - Se ejecuta cuando usuario hace click en pestaña de retirements
+
+### Verificación
+- Sintaxis: `node --check index.js` ✓ (no hay cambios en index.js, solo viewer.html)
+- HTML elements existen: `#stat-retirements-line`, `#stat-penalty-reports-line` (líneas 522, 526)
+- Tab definitions existen: `firstEnabledDashboardTab` incluye retirements (línea 1516)
+- Feature visibility: `applyFeatureVisibility` incluye mapping `retirementsEnabled → retirements-row` (línea 1531)
+
+### Resultado
+Dashboard completamente alineado con nueva arquitectura de arrays separados. Las tablas se renderizan dinámicamente
+cuando se hace click en los tabs, y los stat counters se actualizan con `updateStats()` en cada carga.
+
+---
+
 ## 2026-09-03 T19:00+ — FASE 1 completada: Scraping robusto de 5 secciones tabulares RRS
 
 ### Resumen del trabajo (Sesión 2, Fase 1)
