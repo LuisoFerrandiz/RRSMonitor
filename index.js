@@ -2,6 +2,7 @@ const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const fs = require("fs/promises");
+const fsSync = require("fs");
 const cheerio = require("cheerio");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -3195,7 +3196,7 @@ async function sendTelegramNotification(message) {
 function reloadConfig() {
   // Re-read .env file and update process.env and CONFIG
   const ENV_FILE = path.join(__dirname, '.env');
-  const envContent = fs.readFileSync(ENV_FILE, 'utf8');
+  const envContent = fsSync.readFileSync(ENV_FILE, 'utf8');
   const envLines = envContent.split('\n');
   for (const line of envLines) {
     const trimmed = line.trim();
