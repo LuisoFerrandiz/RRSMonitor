@@ -319,6 +319,7 @@ function resetEventData() {
   writeFileSafe(HISTORY_FILE, '');
   writeFileSafe(CHANGES_FILE, '');
   writeFileSafe(STATE_FILE, empty);
+  writeFileSafe(CLEANUP_ARCHIVE_FILE, '');
   writeFileSafe(USERS_ACTIVITY_FILE, '');
   try {
     const schedulerLog = path.join(DATA_DIR, 'scheduler.log');
