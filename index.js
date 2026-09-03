@@ -3194,6 +3194,7 @@ async function sendTelegramNotification(message) {
 
 function reloadConfig() {
   // Re-read .env file and update process.env and CONFIG
+  const ENV_FILE = path.join(__dirname, '.env');
   const envContent = fs.readFileSync(ENV_FILE, 'utf8');
   const envLines = envContent.split('\n');
   for (const line of envLines) {
