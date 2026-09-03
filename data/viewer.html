@@ -443,6 +443,10 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         <i class="fas fa-broom mr-2 rrs-icon-accent" id="cleanupIcon"></i>
                         CleanUp
                     </button>
+                    <button id="flushHistoryBtn" type="button" class="auth-required rrs-btn px-4 py-1.5 rounded-lg flex items-center shadow-sm text-sm whitespace-nowrap disabled:opacity-50 hidden">
+                        <i class="fas fa-arrow-down mr-2 rrs-icon-accent" id="flushHistoryIcon"></i>
+                        Flush History
+                    </button>
                 </div>
 
                 <!-- Derecha: copia de seguridad -->
@@ -1043,6 +1047,8 @@ const CHANGE_TABLE_COLUMNS = [
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
+const flushHistoryBtn = document.getElementById('flushHistoryBtn');
+const flushHistoryIcon = document.getElementById('flushHistoryIcon');
 const backupBtn = document.getElementById('backupBtn');
 const backupModal = document.getElementById('backupModal');
 const backupModalBackdrop = document.getElementById('backupModalBackdrop');
@@ -3703,6 +3709,12 @@ if (cleanupBtn) cleanupBtn.addEventListener('click', async () => {
     cleanupBtn.disabled = true; cleanupIcon?.classList.add('fa-spin');
     try { await authFetch('api/force-cleanup', { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
     cleanupBtn.disabled = false; cleanupIcon?.classList.remove('fa-spin');
+});
+
+if (flushHistoryBtn) flushHistoryBtn.addEventListener('click', async () => {
+    flushHistoryBtn.disabled = true; flushHistoryIcon?.classList.add('fa-spin');
+    try { await authFetch('api/force-flush-history', { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
+    flushHistoryBtn.disabled = false; flushHistoryIcon?.classList.remove('fa-spin');
 });
 
 if (backupBtn) backupBtn.addEventListener("click", openBackupModal);

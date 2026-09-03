@@ -714,6 +714,24 @@ const router = {
     sendJson(res, 200, { ok: true });
   },
 
+  'POST /api/force-flush-history': (req, res) => {
+    const session = requireAuth(req, res);
+    if (!session) return;
+    try {
+      const tmpFile = path.join(DATA_DIR, 'history.tmp.jsonl');
+      const historyFile = path.join(DATA_DIR, 'history.jsonl');
+      if (fs.existsSync(tmpFile)) {
+        const content = fs.readFileSync(tmpFile, 'utf8');
+        fs.appendFileSync(historyFile, content, 'utf8');
+        fs.unlinkSync(tmpFile);
+      }
+      if (session.username) logUserActivity(session.username, 'flush-history');
+      sendJson(res, 200, { ok: true });
+    } catch (e) {
+      sendJson(res, 500, { ok: false, error: e.message });
+    }
+  },
+
   'POST /api/force-cleanup': (req, res) => {
     const session = requireAuth(req, res);
     if (!session) return;
