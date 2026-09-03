@@ -3837,7 +3837,8 @@ function kanbanIsArchiveView() {
 }
 
 function kanbanCanToggleMinimalView() {
-  return kanbanCanEdit() || kanbanIsArchiveView();
+  // Allow minimal view toggle for decided cards always, or if user can edit
+  return true; // Allow for all users to toggle minimal view on decided cards
 }
 
 function kanbanCardBodyText(value, maxLen, card) {
