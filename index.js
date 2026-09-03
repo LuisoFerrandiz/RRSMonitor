@@ -173,6 +173,26 @@ const scoringEnquiriesFromEnv = expandRrsUrlTemplate(
   process.env.RRS_SCORINGENQUIRIES_URL || "",
   rrsEventId
 );
+const penaltyReportsFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_REPORTPENALTIES_URL || "",
+  rrsEventId
+);
+const retirementsFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_RETIREMENTS_URL || "",
+  rrsEventId
+);
+const onWaterPenaltiesFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_ONWATERPENALTIES_URL || "",
+  rrsEventId
+);
+const crewChangesFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_CREWCHANGES_URL || "",
+  rrsEventId
+);
+const equipmentSubstitutionsFromEnv = expandRrsUrlTemplate(
+  process.env.RRS_EQUIPMENTSUBSTITUTIONS_URL || "",
+  rrsEventId
+);
 
 const CONFIG = {
   eventId: rrsEventId || null,
@@ -205,6 +225,21 @@ const CONFIG = {
   /** Lista TOA-Documents (Event Documents en la web RRS) */
   trelloToaDocumentsListId: process.env.TRELLO_TOA_DOCUMENTS_LIST_ID || "",
   trelloQuestionsListId: process.env.TRELLO_QUESTIONS_LIST_ID || "",
+  penaltyReportsEnabled: process.env.REPORTPENALTIES === "true",
+  penaltyReportsUrl: penaltyReportsFromEnv,
+  retirementsEnabled: process.env.RETIREMENTS === "true",
+  retirementsUrl: retirementsFromEnv,
+  penaltiesEnabled: process.env.ONWATERPENALTIES === "true",
+  onWaterPenaltiesUrl: onWaterPenaltiesFromEnv,
+  crewSubstitutionsEnabled: process.env.CREWCHANGES === "true",
+  crewChangesUrl: crewChangesFromEnv,
+  equipmentSubstitutionsEnabled: process.env.EQUIPMENTSUBSTITUTIONS === "true",
+  equipmentSubstitutionsUrl: equipmentSubstitutionsFromEnv,
+  // Flags de secciones existentes (default ON para no romper comportamiento actual).
+  documentsEnabled: process.env.DOCUMENTS !== "false",
+  questionsEnabled: process.env.QUESTIONS !== "false",
+  scoringEnquiriesEnabled: process.env.SCORINGENQUIRIES !== "false",
+  decisionsEnabled: process.env.DECISIONS !== "false",
 };
 
 /** Identidad estable: fecha+clase mantienen la misma tarjeta aunque cambie hora/restante */
@@ -759,8 +794,11 @@ async function saveState(state) {
 async function fetchHtml(url) {
   const response = await fetch(url, {
     headers: {
-      "User-Agent": "RRS-Monitor/1.0 (+Node.js 18)",
-      Accept: "text/html,application/xhtml+xml",
+      "User-Agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+      Accept:
+        "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
     },
   });
 
@@ -769,6 +807,52 @@ async function fetchHtml(url) {
   }
 
   return response.text();
+}
+
+/** Extrae nombre y logo de la página de schedules (HTML de RRS). */
+function scrapeEventInfo(html) {
+  const $ = cheerio.load(html);
+  const title =
+    $("h3.mb-0").first().text().trim() ||
+    $("figure.event-image img").first().attr("alt") ||
+    "";
+  let logoUrl =
+    $("figure.event-image img").first().attr("src") || "";
+  if (logoUrl && !/^https?:\/\//i.test(logoUrl)) {
+    logoUrl = `${RRS_ORIGIN}${logoUrl}`;
+  }
+  const resultsUrl =
+    $('a[title="Link to Results"]').first().attr("href") || "";
+  return { eventTitle: title, eventLogoUrl: logoUrl, resultsUrl };
+}
+
+/** Guarda eventTitle, eventLogoUrl y resultsUrl en monitor-config.json. */
+async function saveScrapedEventInfo({ eventTitle, eventLogoUrl, resultsUrl }) {
+  const filePath = path.join(CONFIG.dataDir, "monitor-config.json");
+  const existing = await readJsonSafe(filePath, {});
+  const changed =
+    existing.eventTitle !== eventTitle ||
+    existing.eventLogoUrl !== eventLogoUrl ||
+    existing.resultsUrl !== resultsUrl;
+  if (!changed) return;
+  const updated = {
+    ...existing,
+    eventTitle: eventTitle || existing.eventTitle || "",
+    eventLogoUrl: eventLogoUrl || existing.eventLogoUrl || "",
+    sailtiResultsUrl: resultsUrl || existing.sailtiResultsUrl || "",
+  };
+  await fs.writeFile(filePath, JSON.stringify(updated, null, 2), "utf8");
+  console.log(
+    `[EVENT INFO] guardado: "${eventTitle}" | logo=${eventLogoUrl ? "si" : "no"} | sailtiResults=${resultsUrl || "sin"}`
+  );
+}
+
+async function readJsonSafe(filePath, fallback) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8"));
+  } catch {
+    return fallback;
+  }
 }
 
 function extractTableRows(html) {
@@ -921,6 +1005,48 @@ function extractDecisionsDetailByCaseKey(html) {
   });
 
   return map;
+}
+
+/**
+ * Construye las filas de decisiones (kanban interno) cruzando el mapa de
+ * decisiones (caseKey -> {text, fullDecisionUrl}) con las filas del calendario.
+ * Falls back a previousRows para casos decididos que ya no están en el calendario.
+ */
+function buildDecisionRowsFromState(decisionsMap, currentRows, previousRows) {
+  if (!decisionsMap || decisionsMap.size === 0) {
+    return [];
+  }
+  const byKey = (rows) => {
+    const m = new Map();
+    for (const row of rows || []) {
+      const k = hearingCaseKey(row.no);
+      if (!m.has(k)) {
+        m.set(k, row);
+      }
+    }
+    return m;
+  };
+  const cur = byKey(currentRows);
+  const prev = byKey(previousRows);
+
+  const out = [];
+  for (const [caseKey, detail] of decisionsMap.entries()) {
+    const row = cur.get(caseKey) || prev.get(caseKey) || {};
+    out.push({
+      no: String(row.no || caseKey),
+      type: row.type || "",
+      hearingLinks: row.hearingLinks || [],
+      race: row.race || "",
+      initiator: row.initiator || "",
+      respondents: row.respondents || "",
+      schedule: row.schedule || "",
+      location: row.location || "",
+      text: detail.text || "",
+      fullDecisionUrl: detail.fullDecisionUrl || "",
+    });
+  }
+  // Orden estable: las decisiones más recientes (todas válidas)
+  return out;
 }
 
 function detectChanges(previousRows, currentRows) {
@@ -2422,6 +2548,313 @@ function validateTrelloConfig() {
   }
 }
 
+// ─── Tablas RRS genéricas (Retirements / Penalty Reports / On-water Penalties /
+//     Crew Substitutions / Equipment Substitutions) ──────────────────────────
+//
+// Estructura verificada por HTTP (eventos 13730 / 13725). Todas comparten el
+// mismo patrón: <table> con <thead><th> y una fila de estado vacío
+// <tr><td colspan='N'>No … Found</td></tr>. El parser es dirigido por cabeceras
+// para tolerar reordenación de columnas y columnas ocultas (`d-none`).
+
+const RRS_EMPTY_ROW_RE = /\bno\b.*\b(found|encontrad\w*)\b/i;
+
+/**
+ * Parser de tabla RRS dirigido por cabeceras.
+ * @param {string} html
+ * @param {{ containerSelector?: string, requiredHeaders: string[], fieldMap: Record<string,string> }} opts
+ * @returns {{ rows: object[], isEmpty: boolean, headers: string[] }}
+ */
+function extractRrsGenericTable(html, opts) {
+  const { containerSelector, requiredHeaders = [], fieldMap = {} } = opts || {};
+  const $ = cheerio.load(html);
+
+  const headerText = ($th) => normalize($th.text()).toLowerCase();
+
+  let $table = null;
+  if (containerSelector) {
+    const $candidate = $(containerSelector).first();
+    if ($candidate.length && $candidate.is("table")) {
+      $table = $candidate;
+    } else if ($candidate.length) {
+      $table = $candidate.find("table").first();
+    }
+  }
+  if (!$table || !$table.length) {
+    // Descubrir la tabla por sus cabeceras (igual que extractQuestionsRows).
+    $("table").each((_, table) => {
+      if ($table && $table.length) return;
+      const heads = $(table)
+        .find("thead th")
+        .map((__, th) => headerText($(th)))
+        .get();
+      const ok = requiredHeaders.every((h) =>
+        heads.some((head) => head === h || head.includes(h))
+      );
+      if (ok) {
+        $table = $(table);
+      }
+    });
+  }
+  if (!$table || !$table.length) {
+    return { rows: [], isEmpty: false, headers: [] };
+  }
+
+  const headers = $table
+    .find("thead th")
+    .map((__, th) => headerText($(th)))
+    .get();
+  const colIndexFor = (wanted) => {
+    const w = String(wanted || "").toLowerCase();
+    let idx = headers.findIndex((h) => h === w);
+    if (idx < 0) idx = headers.findIndex((h) => h.includes(w) || w.includes(h));
+    return idx;
+  };
+
+  const fieldCols = Object.fromEntries(
+    Object.entries(fieldMap).map(([key, header]) => [key, colIndexFor(header)])
+  );
+
+  const rows = [];
+  let isEmpty = false;
+  $table.find("tbody tr").each((__, tr) => {
+    const $tds = $(tr).find("td");
+    if (!$tds.length) return;
+
+    const joined = normalize($(tr).text());
+    if ($tds.length === 1 || RRS_EMPTY_ROW_RE.test(joined)) {
+      if (RRS_EMPTY_ROW_RE.test(joined) || !joined) isEmpty = true;
+      return;
+    }
+
+    const cellText = (i) =>
+      i >= 0 && i < $tds.length ? dedupeRepeatedWordSpans($tds.eq(i).text()) : "";
+
+    const row = {};
+    for (const [key, idx] of Object.entries(fieldCols)) {
+      row[key] = cellText(idx);
+    }
+
+    const $pdf = $(tr).find('a[href$=".pdf"], a[href*=".pdf?"]').first();
+    const pdfHref = normalize($pdf.attr("href"));
+    if (pdfHref) row.actionsPdfUrl = absolutizeRrsHref(pdfHref);
+
+    const hasAny = Object.values(row).some((v) => v);
+    if (hasAny) rows.push(row);
+  });
+
+  return { rows, isEmpty, headers };
+}
+
+/** Registro declarativo de secciones tabulares RRS. */
+const RRS_TABULAR_SECTIONS = [
+  {
+    id: "retirement",
+    label: "Retirements",
+    urlKey: "retirementsUrl",
+    enabledKey: "retirementsEnabled",
+    logTag: "RETIREMENTS",
+    containerSelector: null,
+    requiredHeaders: ["no.", "boat", "type"],
+    fieldMap: {
+      no: "no.",
+      date: "date",
+      boat: "boat",
+      type: "type",
+      raceNo: "race no.",
+    },
+  },
+  {
+    id: "penaltyReport",
+    label: "Penalty Reports",
+    urlKey: "penaltyReportsUrl",
+    enabledKey: "penaltyReportsEnabled",
+    logTag: "PENALTY_REPORTS",
+    containerSelector: null,
+    requiredHeaders: ["no.", "boats fouled", "penalty taken"],
+    fieldMap: {
+      no: "no.",
+      date: "date",
+      race: "race",
+      leg: "leg",
+      boat: "boat",
+      boatsFouled: "boats fouled",
+      penaltyTaken: "penalty taken",
+    },
+  },
+  {
+    id: "onWaterPenalty",
+    label: "On-water Penalties",
+    urlKey: "onWaterPenaltiesUrl",
+    enabledKey: "penaltiesEnabled",
+    logTag: "PENALTIES_ONWATER",
+    containerSelector: "#penalty-scroller",
+    requiredHeaders: ["class", "penalty", "rule"],
+    fieldMap: {
+      class: "class",
+      nat: "nat.",
+      sailNo: "sail no.",
+      penalty: "penalty",
+      date: "date",
+      race: "race",
+      leg: "leg",
+      rule: "rule",
+      response: "response",
+      jury: "jury",
+      judges: "judges",
+    },
+  },
+  {
+    id: "crewSubstitution",
+    label: "Crew Substitutions",
+    urlKey: "crewChangesUrl",
+    enabledKey: "crewSubstitutionsEnabled",
+    logTag: "CREW_SUBSTITUTIONS",
+    containerSelector: "#substitution-scroller",
+    requiredHeaders: ["no.", "boat", "new crew"],
+    fieldMap: {
+      no: "no.",
+      boat: "boat",
+      date: "date",
+      previousCrew: "previous crew",
+      newCrew: "new crew",
+      status: "status",
+    },
+  },
+  {
+    id: "equipmentSubstitution",
+    label: "Equipment Substitutions",
+    urlKey: "equipmentSubstitutionsUrl",
+    enabledKey: "equipmentSubstitutionsEnabled",
+    logTag: "EQUIPMENT_SUBSTITUTIONS",
+    containerSelector: "#substitution-scroller",
+    requiredHeaders: ["no.", "old equip.", "new equip."],
+    fieldMap: {
+      no: "no.",
+      boat: "boat",
+      date: "date",
+      oldEquip: "old equip.",
+      newEquip: "new equip.",
+      status: "status",
+    },
+  },
+];
+
+const RRS_SECTION_BY_ID = new Map(
+  RRS_TABULAR_SECTIONS.map((section) => [section.id, section])
+);
+
+function genericRowKey(section, row) {
+  const no = normalize(row.no);
+  if (no) return no;
+  return Object.keys(section.fieldMap)
+    .map((key) => normalize(row[key]))
+    .join("||");
+}
+
+function genericRowFingerprint(section, row) {
+  return Object.keys(section.fieldMap)
+    .map((key) => normalize(row[key]))
+    .concat(normalize(row.actionsPdfUrl))
+    .join("||");
+}
+
+function detectGenericRowChanges(section, previousRows, currentRows) {
+  const prevMap = new Map(
+    (previousRows || []).map((row) => [genericRowKey(section, row), row])
+  );
+  const curMap = new Map(
+    (currentRows || []).map((row) => [genericRowKey(section, row), row])
+  );
+
+  const added = [];
+  const modified = [];
+  const removed = [];
+
+  for (const [key, currentRow] of curMap.entries()) {
+    const prevRow = prevMap.get(key);
+    if (!prevRow) {
+      added.push(currentRow);
+      continue;
+    }
+    if (
+      genericRowFingerprint(section, prevRow) !==
+      genericRowFingerprint(section, currentRow)
+    ) {
+      modified.push({ key, before: prevRow, after: currentRow });
+    }
+  }
+  for (const [key, prevRow] of prevMap.entries()) {
+    if (!curMap.has(key)) removed.push(prevRow);
+  }
+
+  return { added, modified, removed };
+}
+
+function genericChangesEmpty() {
+  return { added: [], modified: [], removed: [] };
+}
+
+function hasGenericChanges(changes) {
+  return (
+    (changes?.added?.length || 0) +
+      (changes?.modified?.length || 0) +
+      (changes?.removed?.length || 0) >
+    0
+  );
+}
+
+/**
+ * Scrapea todas las secciones tabulares habilitadas en CONFIG.
+ * 404 → sección vacía (algunos eventos no tienen ese módulo), sin console.error.
+ * Devuelve { rowsById, changesById, anyChanges }.
+ */
+async function scrapeRrsTabularSections(previousState) {
+  const rowsById = {};
+  const changesById = {};
+  let anyChanges = false;
+
+  for (const section of RRS_TABULAR_SECTIONS) {
+    const previousRows = previousState?.[`${section.id}Rows`] || [];
+    const url = normalize(CONFIG[section.urlKey]);
+
+    if (!CONFIG[section.enabledKey] || !url) {
+      rowsById[section.id] = previousRows;
+      changesById[section.id] = genericChangesEmpty();
+      continue;
+    }
+
+    try {
+      const html = await fetchHtml(url);
+      const { rows } = extractRrsGenericTable(html, {
+        containerSelector: section.containerSelector,
+        requiredHeaders: section.requiredHeaders,
+        fieldMap: section.fieldMap,
+      });
+      const changes = detectGenericRowChanges(section, previousRows, rows);
+      rowsById[section.id] = rows;
+      changesById[section.id] = changes;
+      if (hasGenericChanges(changes)) anyChanges = true;
+    } catch (error) {
+      const notFound = /\b404\b/.test(error.message || "");
+      if (notFound) {
+        console.log(
+          `[${section.logTag}] 404 en ${url}; se trata como sección vacía.`
+        );
+        const changes = detectGenericRowChanges(section, previousRows, []);
+        rowsById[section.id] = [];
+        changesById[section.id] = changes;
+        if (hasGenericChanges(changes)) anyChanges = true;
+      } else {
+        console.error(`[${section.logTag}]`, error.message);
+        rowsById[section.id] = previousRows;
+        changesById[section.id] = genericChangesEmpty();
+      }
+    }
+  }
+
+  return { rowsById, changesById, anyChanges };
+}
+
 async function applyTrelloCycle(
   previousState,
   currentRows,
@@ -2765,6 +3198,16 @@ async function runMonitorCycle() {
   const currentRows = extractTableRows(html);
   const currentTimeLimits = extractTimeLimitRows(html);
 
+  // Scraping del nombre y logo de la regata (y URL externa de Results).
+  const scraped = scrapeEventInfo(html);
+  if (scraped.eventTitle || scraped.eventLogoUrl || scraped.resultsUrl) {
+    try {
+      await saveScrapedEventInfo(scraped);
+    } catch (error) {
+      console.error("[EVENT INFO]", error.message);
+    }
+  }
+
   const previousState = await loadState();
   const previousRows = previousState?.rows || [];
   const previousTimeLimits = previousState?.timeLimitRows || [];
@@ -2774,7 +3217,7 @@ async function runMonitorCycle() {
 
   let documentRowsForState = previousDocumentRows;
   let documentChanges = { added: [], modified: [], removed: [] };
-  if (normalize(CONFIG.documentsUrl)) {
+  if (CONFIG.documentsEnabled && normalize(CONFIG.documentsUrl)) {
     try {
       const docHtml = await fetchHtml(CONFIG.documentsUrl);
       const currentDocumentRows = extractEventDocumentRows(docHtml);
@@ -2789,7 +3232,7 @@ async function runMonitorCycle() {
 
   let questionRowsForState = previousQuestionRows;
   let questionChanges = { added: [], modified: [], removed: [] };
-  if (normalize(CONFIG.questionsUrl)) {
+  if (CONFIG.questionsEnabled && normalize(CONFIG.questionsUrl)) {
     try {
       const qHtml = await fetchHtml(CONFIG.questionsUrl);
       const currentQuestionRows = extractQuestionsRows(qHtml);
@@ -2804,7 +3247,7 @@ async function runMonitorCycle() {
 
   let scoringInquiryRowsForState = previousScoringInquiryRows;
   let scoringInquiryChanges = { added: [], modified: [], removed: [] };
-  if (normalize(CONFIG.scoringEnquiriesUrl)) {
+  if (CONFIG.scoringEnquiriesEnabled && normalize(CONFIG.scoringEnquiriesUrl)) {
     try {
       const siHtml = await fetchHtml(CONFIG.scoringEnquiriesUrl);
       const currentScoringInquiryRows = extractScoringInquiryRows(siHtml);
@@ -2822,6 +3265,27 @@ async function runMonitorCycle() {
 
   const changes = detectChanges(previousRows, currentRows);
   const timeLimitChanges = detectTimeLimitChanges(previousTimeLimits, currentTimeLimits);
+
+  let decisionRowsForState = previousState?.decisionRows || [];
+  if (CONFIG.decisionsEnabled && normalize(CONFIG.decisionsUrl)) {
+    try {
+      const decHtml = await fetchHtml(CONFIG.decisionsUrl);
+      const decisionsDetailMap = extractDecisionsDetailByCaseKey(decHtml);
+      decisionRowsForState = buildDecisionRowsFromState(
+        decisionsDetailMap,
+        currentRows,
+        previousRows
+      );
+    } catch (error) {
+      console.error("[DECISIONS]", error.message);
+      decisionRowsForState = previousState?.decisionRows || [];
+    }
+  }
+
+  // Secciones tabulares RRS (retirements, penalty reports, on-water penalties,
+  // crew substitutions, equipment substitutions). Solo scraping + estado +
+  // dashboard: no disparan Telegram ni Trello.
+  const tabular = await scrapeRrsTabularSections(previousState);
 
   const hearingAttachmentUrlsByCase = migrateStringKeysByHearingCase(
     previousState?.hearingAttachmentUrlsByCase || {}
@@ -2860,6 +3324,11 @@ async function runMonitorCycle() {
     hasDocumentChanges ||
     hasQuestionChanges ||
     hasScoringInquiryChanges;
+
+  // Cambios en las secciones tabulares: se registran en changes.jsonl pero
+  // NO disparan Telegram.
+  const hasTabularChanges = tabular.anyChanges;
+  const shouldRecordChanges = hasChanges || hasTabularChanges;
 
   let trelloCards = migrateStringKeysByHearingCase(previousState?.trelloCards || {});
   let trelloSyncedFingerprintByCase = migrateStringKeysByHearingCase(
@@ -2920,6 +3389,8 @@ async function runMonitorCycle() {
 
   const snapshot = {
     timestamp,
+    decisionRowCount: decisionRowsForState.length,
+    decisionRows: decisionRowsForState,
     rowCount: currentRows.length,
     rows: currentRows,
     timeLimitRowCount: currentTimeLimits.length,
@@ -2930,6 +3401,20 @@ async function runMonitorCycle() {
     questionRows: questionRowsForState,
     scoringInquiryRowCount: scoringInquiryRowsForState.length,
     scoringInquiryRows: scoringInquiryRowsForState,
+    // Secciones tabulares RRS: un array + su contador por sección.
+    retirementRowCount: tabular.rowsById.retirement.length,
+    retirementRows: tabular.rowsById.retirement,
+    penaltyReportRowCount: tabular.rowsById.penaltyReport.length,
+    penaltyReportRows: tabular.rowsById.penaltyReport,
+    onWaterPenaltyRowCount: tabular.rowsById.onWaterPenalty.length,
+    onWaterPenaltyRows: tabular.rowsById.onWaterPenalty,
+    crewSubstitutionRowCount: tabular.rowsById.crewSubstitution.length,
+    crewSubstitutionRows: tabular.rowsById.crewSubstitution,
+    equipmentSubstitutionRowCount: tabular.rowsById.equipmentSubstitution.length,
+    equipmentSubstitutionRows: tabular.rowsById.equipmentSubstitution,
+    // Alias de compatibilidad con el dashboard actual (pestaña "penalties").
+    penaltyRowCount: tabular.rowsById.onWaterPenalty.length,
+    penaltyRows: tabular.rowsById.onWaterPenalty,
     trelloCards,
     trelloSyncedFingerprintByCase,
     trelloTimeLimitCards,
@@ -2948,7 +3433,12 @@ async function runMonitorCycle() {
     );
   }
 
-  if (hasChanges) {
+  const tabularChangeSummary = RRS_TABULAR_SECTIONS.map((section) => {
+    const c = tabular.changesById[section.id];
+    return `${section.id} +${c.added.length} ~${c.modified.length} -${c.removed.length}`;
+  }).join(" | ");
+
+  if (shouldRecordChanges) {
     const event = {
       timestamp,
       changes,
@@ -2956,35 +3446,48 @@ async function runMonitorCycle() {
       documentChanges,
       questionChanges,
       scoringInquiryChanges,
+      retirementChanges: tabular.changesById.retirement,
+      penaltyReportChanges: tabular.changesById.penaltyReport,
+      onWaterPenaltyChanges: tabular.changesById.onWaterPenalty,
+      crewSubstitutionChanges: tabular.changesById.crewSubstitution,
+      equipmentSubstitutionChanges: tabular.changesById.equipmentSubstitution,
       currentRowCount: currentRows.length,
       currentTimeLimitCount: currentTimeLimits.length,
       currentDocumentCount: documentRowsForState.length,
       currentQuestionCount: questionRowsForState.length,
       currentScoringInquiryCount: scoringInquiryRowsForState.length,
+      currentRetirementCount: tabular.rowsById.retirement.length,
+      currentPenaltyReportCount: tabular.rowsById.penaltyReport.length,
+      currentOnWaterPenaltyCount: tabular.rowsById.onWaterPenalty.length,
+      currentCrewSubstitutionCount: tabular.rowsById.crewSubstitution.length,
+      currentEquipmentSubstitutionCount:
+        tabular.rowsById.equipmentSubstitution.length,
       ...(previousState ? {} : { baseline: true }),
     };
 
     await appendJsonLine(CONFIG.changesFile, event);
     console.log(
-      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length} | Questions +${questionChanges.added.length} ~${questionChanges.modified.length} -${questionChanges.removed.length} | Scoring +${scoringInquiryChanges.added.length} ~${scoringInquiryChanges.modified.length} -${scoringInquiryChanges.removed.length}`
+      `[CHANGES] Audiencias +${changes.added.length} ~${changes.modified.length} -${changes.removed.length} | TimeLimit +${timeLimitChanges.added.length} ~${timeLimitChanges.modified.length} -${timeLimitChanges.removed.length} | Docs +${documentChanges.added.length} ~${documentChanges.modified.length} -${documentChanges.removed.length} | Questions +${questionChanges.added.length} ~${questionChanges.modified.length} -${questionChanges.removed.length} | Scoring +${scoringInquiryChanges.added.length} ~${scoringInquiryChanges.modified.length} -${scoringInquiryChanges.removed.length} | ${tabularChangeSummary}`
     );
 
-    const message = formatTelegramMessage(
-      changes,
-      timeLimitChanges,
-      documentChanges,
-      questionChanges,
-      timestamp,
-      !previousState
-    );
-    try {
-      await sendTelegramNotification(message);
-    } catch (error) {
-      console.error("[TELEGRAM]", error.message);
+    if (hasChanges) {
+      const message = formatTelegramMessage(
+        changes,
+        timeLimitChanges,
+        documentChanges,
+        questionChanges,
+        timestamp,
+        !previousState
+      );
+      try {
+        await sendTelegramNotification(message);
+      } catch (error) {
+        console.error("[TELEGRAM]", error.message);
+      }
     }
   } else if (previousState) {
     console.log(
-      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas, ${scoringInquiryRowsForState.length} scoring enquiries)`
+      `[NO_CHANGES] ${timestamp} (${currentRows.length} audiencias, ${currentTimeLimits.length} time limit(s), ${documentRowsForState.length} documento(s), ${questionRowsForState.length} preguntas, ${scoringInquiryRowsForState.length} scoring enquiries, ${tabular.rowsById.retirement.length} retirements, ${tabular.rowsById.penaltyReport.length} penalty reports, ${tabular.rowsById.onWaterPenalty.length} on-water penalties, ${tabular.rowsById.crewSubstitution.length} crew subs, ${tabular.rowsById.equipmentSubstitution.length} equipment subs)`
     );
   }
 
@@ -3015,6 +3518,23 @@ async function main() {
   }
   if (CONFIG.scoringEnquiriesUrl) {
     console.log(`[START] Scoring Inquiries RRS -> ${CONFIG.scoringEnquiriesUrl}`);
+  }
+  if (CONFIG.penaltyReportsUrl) {
+    console.log(`[START] Penalty Reports RRS -> ${CONFIG.penaltyReportsUrl}`);
+  }
+  if (CONFIG.retirementsUrl) {
+    console.log(`[START] Retirements RRS -> ${CONFIG.retirementsUrl}`);
+  }
+  if (CONFIG.onWaterPenaltiesUrl) {
+    console.log(`[START] On-water Penalties RRS -> ${CONFIG.onWaterPenaltiesUrl}`);
+  }
+  if (CONFIG.crewChangesUrl) {
+    console.log(`[START] Crew Substitutions RRS -> ${CONFIG.crewChangesUrl}`);
+  }
+  if (CONFIG.equipmentSubstitutionsUrl) {
+    console.log(
+      `[START] Equipment Substitutions RRS -> ${CONFIG.equipmentSubstitutionsUrl}`
+    );
   }
 
   const execute = async () => {
