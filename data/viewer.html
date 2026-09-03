@@ -443,10 +443,6 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         <i class="fas fa-broom mr-2 rrs-icon-accent" id="cleanupIcon"></i>
                         CleanUp
                     </button>
-                    <button id="flushHistoryBtn" type="button" class="auth-required rrs-btn px-4 py-1.5 rounded-lg flex items-center shadow-sm text-sm whitespace-nowrap disabled:opacity-50 hidden">
-                        <i class="fas fa-arrow-down mr-2 rrs-icon-accent" id="flushHistoryIcon"></i>
-                        Flush History
-                    </button>
                 </div>
 
                 <!-- Derecha: copia de seguridad -->
@@ -910,6 +906,18 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         </div>
                     </div>
                 </div>
+                <div class="border border-blue-100 rounded-lg p-4 bg-blue-50/30">
+                    <div class="flex items-start gap-3">
+                        <i class="fas fa-arrow-down text-blue-400 mt-1"></i>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-bold text-gray-800">Force flush</h3>
+                            <p class="text-xs text-gray-500 mt-1">Writes buffered history to disk immediately. Automatic flush occurs every 30 minutes.</p>
+                            <button id="backupFlushHistoryBtn" type="button" class="mt-3 px-4 py-2 text-sm rounded-lg border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium">
+                                <i class="fas fa-arrow-down mr-2" id="backupFlushHistoryIcon"></i>Flush History
+                            </button>
+                        </div>
+                    </div>
+                </div>
                 <div class="backup-live-only border border-red-100 rounded-lg p-4 bg-red-50/30">
                     <div class="flex items-start gap-3">
                         <i class="fas fa-trash-alt text-red-400 mt-1"></i>
@@ -1047,8 +1055,8 @@ const CHANGE_TABLE_COLUMNS = [
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
-const flushHistoryBtn = document.getElementById('flushHistoryBtn');
-const flushHistoryIcon = document.getElementById('flushHistoryIcon');
+const backupFlushHistoryBtn = document.getElementById('backupFlushHistoryBtn');
+const backupFlushHistoryIcon = document.getElementById('backupFlushHistoryIcon');
 const backupBtn = document.getElementById('backupBtn');
 const backupModal = document.getElementById('backupModal');
 const backupModalBackdrop = document.getElementById('backupModalBackdrop');
@@ -3711,10 +3719,10 @@ if (cleanupBtn) cleanupBtn.addEventListener('click', async () => {
     cleanupBtn.disabled = false; cleanupIcon?.classList.remove('fa-spin');
 });
 
-if (flushHistoryBtn) flushHistoryBtn.addEventListener('click', async () => {
-    flushHistoryBtn.disabled = true; flushHistoryIcon?.classList.add('fa-spin');
+if (backupFlushHistoryBtn) backupFlushHistoryBtn.addEventListener('click', async () => {
+    backupFlushHistoryBtn.disabled = true; backupFlushHistoryIcon?.classList.add('fa-spin');
     try { await authFetch('api/force-flush-history', { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
-    flushHistoryBtn.disabled = false; flushHistoryIcon?.classList.remove('fa-spin');
+    backupFlushHistoryBtn.disabled = false; backupFlushHistoryIcon?.classList.remove('fa-spin');
 });
 
 if (backupBtn) backupBtn.addEventListener("click", openBackupModal);
