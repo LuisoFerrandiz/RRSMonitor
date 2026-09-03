@@ -3192,7 +3192,30 @@ async function sendTelegramNotification(message) {
   }
 }
 
+function reloadConfig() {
+  // Re-read .env file and update process.env and CONFIG
+  const envContent = fs.readFileSync(ENV_FILE, 'utf8');
+  const envLines = envContent.split('\n');
+  for (const line of envLines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const [key, ...valueParts] = trimmed.split('=');
+    if (key) process.env[key] = valueParts.join('=');
+  }
+
+  const newEventId = process.env.RRS_EVENT_ID || null;
+  if (newEventId !== CONFIG.eventId) {
+    CONFIG.eventId = newEventId;
+    CONFIG.url = process.env.RRS_URL || `${RRS_ORIGIN}/schedules/${newEventId}/event`;
+    CONFIG.documentsUrl = process.env.RRS_DOCUMENTS_URL || `${RRS_ORIGIN}/documents/${newEventId}/event`;
+    CONFIG.decisionsUrl = process.env.RRS_DECISIONS_URL || `${RRS_ORIGIN}/decisions/${newEventId}/event`;
+    CONFIG.questionsUrl = process.env.RRS_QUESTIONS_URL || `${RRS_ORIGIN}/questions/${newEventId}/event`;
+    CONFIG.scoringEnquiriesUrl = process.env.RRS_SCORINGENQUIRIES_URL || `${RRS_ORIGIN}/scoring_inquiries/${newEventId}/event`;
+  }
+}
+
 async function runMonitorCycle() {
+  reloadConfig();
   const timestamp = formatReportTimestamp();
   const html = await fetchHtml(CONFIG.url);
   const currentRows = extractTableRows(html);
