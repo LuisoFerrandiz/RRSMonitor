@@ -102,7 +102,7 @@ const ScheduleEditor = (() => {
     if (status) status.textContent = "Guardando…";
     let ok = true;
     try {
-      const token = localStorage.getItem("rrsAuthToken");
+      const token = sessionStorage.getItem("rrsAuthToken");
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
 
