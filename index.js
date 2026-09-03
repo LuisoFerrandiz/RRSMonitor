@@ -3219,6 +3219,7 @@ function reloadConfig() {
 async function runMonitorCycle() {
   reloadConfig();
   const timestamp = formatReportTimestamp();
+  console.log(`[CYCLE] ${timestamp}`);
   const html = await fetchHtml(CONFIG.url);
   const currentRows = extractTableRows(html);
   const currentTimeLimits = extractTimeLimitRows(html);
