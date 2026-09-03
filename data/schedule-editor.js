@@ -102,9 +102,13 @@ const ScheduleEditor = (() => {
     if (status) status.textContent = "Guardando…";
     let ok = true;
     try {
+      const token = localStorage.getItem("rrsAuthToken");
+      const headers = { "Content-Type": "application/json" };
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+
       const r = await fetch("/api/schedule", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(working),
       });
       if (!r.ok) throw new Error("HTTP " + r.status);
