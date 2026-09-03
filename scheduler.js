@@ -12,7 +12,7 @@ const DATA_DIR = process.env.DATA_DIR
 const TIME_ZONE = process.env.REPORT_TIME_ZONE || "Europe/Madrid";
 const SCHEDULE_FILE = process.env.SCHEDULE_FILE
   ? path.resolve(process.env.SCHEDULE_FILE)
-  : path.join(__dirname, "schedule.json");
+  : path.join(DATA_DIR, "schedule.json");
 
 const LOCK_FILE = path.join(DATA_DIR, "monitor.lock");
 const LAST_RUN_FILE = path.join(DATA_DIR, "scheduler-last-run.json");

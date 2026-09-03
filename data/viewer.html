@@ -6018,8 +6018,13 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
   }
 
   async function openScheduleEditor() {
-    if (typeof window.isAuthenticated === "function" && !window.isAuthenticated()) return;
+    console.log('[SCHEDULE] Opening editor...');
+    if (typeof window.isAuthenticated === "function" && !window.isAuthenticated()) {
+      console.log('[SCHEDULE] Not authenticated');
+      return;
+    }
     if (typeof isServerMode === 'function' && !isServerMode()) {
+      console.log('[SCHEDULE] Not in server mode');
       alert('The schedule editor only works via the server URL.');
       return;
     }
@@ -6028,9 +6033,12 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
     modal().classList.remove('hidden');
     document.body.classList.add('overflow-hidden');
     try {
+      console.log('[SCHEDULE] Fetching schedule...');
       const schedule = await fetchSchedule();
+      console.log('[SCHEDULE] Schedule loaded:', schedule);
       renderEditor(JSON.parse(JSON.stringify(schedule)));
     } catch (e) {
+      console.error('[SCHEDULE] Error loading:', e.message);
       renderEditor({ plans: [defaultPlan()] });
       setStatus('Could not load schedule.json: ' + e.message, true);
     }
@@ -6044,8 +6052,10 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
 
   async function saveScheduleEditor(ev) {
     ev.preventDefault();
+    console.log('[SCHEDULE] Saving...');
     setStatus('Saving...');
     const payload = collectFormData();
+    console.log('[SCHEDULE] Payload:', payload);
     payload.plans.forEach((plan) => {
       plan.windows.forEach((w) => {
         w.start = fromTimeInput(w.start);
@@ -6053,12 +6063,14 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
       });
     });
     try {
+      console.log('[SCHEDULE] Sending to API:', JSON.stringify(payload));
       const res = await authFetch('/api/schedule', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
       const text = await res.text();
+      console.log('[SCHEDULE] Response status:', res.status, 'text:', text);
       let data;
       try { data = JSON.parse(text); } catch { throw new Error('Invalid server response'); }
       if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -6066,9 +6078,11 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
           window.dashboardData.scheduleConfig = payload;
           if (typeof renderStages === 'function') renderStages();
       }
+      console.log('[SCHEDULE] Saved successfully!');
       setStatus('Schedule saved successfully');
       setTimeout(closeScheduleEditor, 800);
     } catch (e) {
+      console.error('[SCHEDULE] Save error:', e.message);
       setStatus(e.message || 'Save failed', true);
     }
   }
