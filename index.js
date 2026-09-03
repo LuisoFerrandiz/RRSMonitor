@@ -1058,24 +1058,48 @@ function extractDecisionsDetailByCaseKey(html) {
         // Extract additional fields
         const typeTd = typeIdx >= 0 ? $tds.eq(typeIdx) : null;
         const typeText = typeTd ? normalize(typeTd.text()) : "";
-        const hearingRequestUrl = typeTd ? toAbsoluteUrl(typeTd.find("a").attr("href") || "") : "";
+
+        // Extract ALL links from type cell
+        const typeLinks = [];
+        if (typeTd) {
+          typeTd.find("a").each((_, link) => {
+            const href = $(link).attr("href") || "";
+            const linkText = $(link).text().trim();
+            if (href) {
+              typeLinks.push({
+                text: linkText || "Link",
+                href: toAbsoluteUrl(href)
+              });
+            }
+          });
+        }
 
         const race = raceIdx >= 0 ? normalize($tds.eq(raceIdx).text()) : "";
         const initiator = initiatorIdx >= 0 ? normalize($tds.eq(initiatorIdx).text()) : "";
         const respondents = respondentIdx >= 0 ? normalize($tds.eq(respondentIdx).text()) : "";
 
-        // Extract Final Decision link (look for PDF or other links in decision cell)
-        const finalDecisionUrl = toAbsoluteUrl($decTd.find("a").attr("href") || "");
+        // Extract ALL links from decision cell
+        const decisionLinks = [];
+        $decTd.find("a").each((_, link) => {
+          const href = $(link).attr("href") || "";
+          const linkText = $(link).text().trim();
+          if (href && linkText !== "~more~") { // Skip ~more~ links
+            decisionLinks.push({
+              text: linkText || "Link",
+              href: toAbsoluteUrl(href)
+            });
+          }
+        });
 
         map.set(key, {
           text,
           fullDecisionUrl: fullDecisionUrl || "",
           type: typeText,
-          hearingRequestUrl: hearingRequestUrl || "",
+          typeLinks,
           race,
           initiator,
           respondents,
-          finalDecisionUrl: finalDecisionUrl || "",
+          decisionLinks,
         });
       });
   });
@@ -1108,18 +1132,14 @@ function buildDecisionRowsFromState(decisionsMap, currentRows, previousRows) {
   const out = [];
   for (const [caseKey, detail] of decisionsMap.entries()) {
     const row = cur.get(caseKey) || prev.get(caseKey) || {};
-    // Use fields from decisionsMap first, fallback to row data
-    const hearingLinks = [];
-    if (detail.hearingRequestUrl) {
-      hearingLinks.push({ text: "Hearing Request Form", href: detail.hearingRequestUrl });
-    }
-    if (detail.finalDecisionUrl && detail.finalDecisionUrl !== detail.hearingRequestUrl) {
-      hearingLinks.push({ text: "Final Decision", href: detail.finalDecisionUrl });
-    }
+    // Combine all links from type and decision cells
+    const allLinks = [...(detail.typeLinks || []), ...(detail.decisionLinks || [])];
+    const hearingLinks = allLinks.length > 0 ? allLinks : row.hearingLinks || [];
+
     out.push({
       no: String(row.no || caseKey),
       type: detail.type || row.type || "",
-      hearingLinks: hearingLinks.length > 0 ? hearingLinks : row.hearingLinks || [],
+      hearingLinks,
       race: detail.race || row.race || "",
       initiator: detail.initiator || row.initiator || "",
       respondents: detail.respondents || row.respondents || "",
