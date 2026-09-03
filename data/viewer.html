@@ -3701,7 +3701,7 @@ function renderStages() {
 // Botones
 if (cleanupBtn) cleanupBtn.addEventListener('click', async () => {
     cleanupBtn.disabled = true; cleanupIcon?.classList.add('fa-spin');
-    try { await fetch(fetchUrl('api/force-cleanup'), { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
+    try { await authFetch('api/force-cleanup', { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
     cleanupBtn.disabled = false; cleanupIcon?.classList.remove('fa-spin');
 });
 
@@ -3735,7 +3735,7 @@ if (backupResetBtn) backupResetBtn.addEventListener("click", async () => {
     backupResetBtn.disabled = true;
     setBackupStatus("Resetting…", "info");
     try {
-        const res = await fetch(fetchUrl("api/reset"), { method: "POST" });
+        const res = await authFetch("api/reset", { method: "POST" });
         const data = await res.json();
         if (data.ok) {
             setBackupStatus("Reset completed. Reloading…", "ok");

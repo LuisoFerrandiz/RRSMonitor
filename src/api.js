@@ -319,6 +319,11 @@ function resetEventData() {
   writeFileSafe(HISTORY_FILE, '');
   writeFileSafe(CHANGES_FILE, '');
   writeFileSafe(STATE_FILE, empty);
+  writeFileSafe(USERS_ACTIVITY_FILE, '');
+  try {
+    const schedulerLog = path.join(DATA_DIR, 'scheduler.log');
+    if (fs.existsSync(schedulerLog)) fs.writeFileSync(schedulerLog, '');
+  } catch {}
   return true;
 }
 
