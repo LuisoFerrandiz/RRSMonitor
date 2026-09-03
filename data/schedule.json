@@ -1,0 +1,19 @@
+{
+  "plans": [
+    {
+      "name": "Septiembre 2026",
+      "dates": [
+        "2026-09-03",
+        "2026-09-04"
+      ],
+      "windows": [
+        {
+          "name": "All day",
+          "start": "09:00",
+          "end": "21:00",
+          "frequencyMinutes": 1
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "roles": [
+    { "id": "chairman", "label": "Chairman", "badgeStyle": "core", "system": true },
+    { "id": "scribe", "label": "Scribe", "badgeStyle": "core", "system": true },
+    { "id": "member", "label": "Judge", "badgeStyle": "core", "system": true },
+    { "id": "arbitrator", "label": "Arbitrator", "badgeStyle": "alt", "system": true },
+    { "id": "observer", "label": "Observer", "badgeStyle": "alt", "system": true },
+    { "id": "witness", "label": "Witness", "badgeStyle": "alt", "system": true }
+  ]
+}
