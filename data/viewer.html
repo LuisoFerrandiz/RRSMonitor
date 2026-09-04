@@ -445,8 +445,12 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     </button>
                 </div>
 
-                <!-- Derecha: copia de seguridad -->
+                <!-- Derecha: kanban, copia de seguridad -->
                 <div class="flex items-center gap-3 shrink-0">
+                    <button type="button" id="hearingsKanbanBtn" onclick="switchTab('kanban');"
+                        class="rrs-btn rrs-kanban-btn px-4 py-1.5 rounded-lg flex items-center shadow-sm text-sm font-bold whitespace-nowrap">
+                        <i class="fas fa-columns mr-2 rrs-icon-accent text-base"></i>KANBAN (0)
+                    </button>
                     <button id="backupBtn" type="button" class="auth-required hidden rrs-btn px-4 py-1.5 rounded-lg flex items-center shadow-sm text-sm font-medium whitespace-nowrap">
                         <i class="fas fa-shield-halved mr-2 rrs-icon-primary"></i>
                         Backup
@@ -501,10 +505,6 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     <i class="fas fa-satellite rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-tracking-line">Tracking </div>
                 </div>
-                <button type="button" id="hearingsKanbanBtn" onclick="event.stopPropagation(); switchTab('kanban');"
-                    class="rrs-btn rrs-kanban-btn mt-2 ml-6 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide self-start whitespace-nowrap">
-                    <i class="fas fa-columns mr-1.5 rrs-icon-accent text-base"></i>KANBAN (0)
-                </button>
             </div>
 
             <!-- Tarjeta 2: Documents, Q&A, Penalties, Scoring, Crew, Equipment -->
