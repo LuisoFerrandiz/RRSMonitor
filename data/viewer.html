@@ -964,6 +964,15 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 </div>
 
                 <div id="configToggles" class="grid grid-cols-1 sm:grid-cols-2 gap-2"></div>
+
+                <div class="border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
+                    <h3 class="text-sm font-bold flex items-center gap-2" style="color: var(--rrs-text);">
+                        <i class="fas fa-trophy rrs-icon-primary"></i> External Results URL
+                    </h3>
+                    <input id="configExternalResults" type="text"
+                        class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://data.orc.org/public/WEV.dll?..."
+                        style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                </div>
             </div>
             <div class="flex items-center justify-end gap-2 px-5 py-4 border-t" style="border-color: var(--rrs-border);">
                 <p id="configModalStatus" class="hidden mr-auto text-sm italic"></p>
@@ -1089,6 +1098,7 @@ const configModalClose = document.getElementById('configModalClose');
 const configCancelBtn = document.getElementById('configCancelBtn');
 const configSaveBtn = document.getElementById('configSaveBtn');
 const configEventId = document.getElementById('configEventId');
+const configExternalResults = document.getElementById('configExternalResults');
 const configToggles = document.getElementById('configToggles');
 const configModalStatus = document.getElementById('configModalStatus');
 const loginModal = document.getElementById('loginModal');
@@ -2322,7 +2332,6 @@ function closeBackupModal() {
 
 const CONFIG_TOGGLE_DEFS = [
     { key: "documentsEnabled", id: "documents", label: "Documents", icon: "fa-file-pdf", env: "DOCUMENTS" },
-    { key: "sailtiResultsEnabled", id: "sailtiResults", label: "Results", icon: "fa-ranking-star", env: "SAILTIRESULTS" },
     { key: "questionsEnabled", id: "qa", label: "Q&A", icon: "fa-question-circle", env: "QUESTIONS" },
     { key: "scoringEnquiriesEnabled", id: "scoring", label: "Scoring inquiries", icon: "fa-calculator", env: "SCORINGENQUIRIES" },
     { key: "penaltiesEnabled", id: "penalties", label: "On the water penalties", icon: "fa-flag", env: "ONWATERPENALTIES" },
@@ -2330,6 +2339,7 @@ const CONFIG_TOGGLE_DEFS = [
     { key: "retirementsEnabled", id: "retirements", label: "Retirements", icon: "fa-person-walking", env: "RETIREMENTS" },
     { key: "crewSubstitutionsEnabled", id: "crewSubstitutions", label: "Crew Substitutions", icon: "fa-users", env: "CREWCHANGES" },
     { key: "equipmentSubstitutionsEnabled", id: "equipmentSubstitutions", label: "Equipment Substitutions", icon: "fa-toolbox", env: "EQUIPMENTSUBSTITUTIONS" },
+    { key: "sailtiResultsEnabled", id: "sailtiResults", label: "Results", icon: "fa-ranking-star", env: "SAILTIRESULTS" },
 ];
 
 function setConfigStatus(msg, type = "info") {
@@ -2367,6 +2377,7 @@ async function openConfigModal() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const cfg = await res.json();
         configEventId.value = cfg.eventId || "";
+        configExternalResults.value = cfg.externalResultsUrl || "";
         renderConfigToggles(cfg);
         setConfigStatus("", "info");
     } catch {
@@ -2387,6 +2398,7 @@ async function saveConfig() {
         return;
     }
     const payload = { eventId };
+    payload.externalResultsUrl = (configExternalResults?.value || "").trim();
     CONFIG_TOGGLE_DEFS.forEach((def) => {
         const el = configToggles?.querySelector(`[data-config-toggle="${def.id}"]`);
         if (el) payload[def.key] = el.checked;
@@ -2941,7 +2953,7 @@ function updateKanbanPanelVisibility() {
 
 function getSailtiResultsEmbedUrl() {
     if (!isMonitorFeatureEnabled("sailtiResultsEnabled")) return "";
-    return fetchUrl("api/sailti-results-embed");
+    return getMonitorCfg().externalResultsUrl || "";
 }
 
 function renderSailtiResultsEmbed() {

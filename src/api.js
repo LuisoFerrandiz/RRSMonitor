@@ -223,6 +223,7 @@ function normalizeConfig(cfg) {
     documentsSource: cfg.documentsSource || 'rrs',
     sailtiResultsEnabled: bool('SAILTIRESULTS', cfg.sailtiResultsEnabled),
     sailtiResultsUrl: cfg.sailtiResultsUrl || '',
+    externalResultsUrl: env.EXTERNALRESULTS || cfg.externalResultsUrl || '',
     trackingEnabled: !!cfg.trackingEnabled,
     trackingUrl: cfg.trackingUrl || '',
     decisionsEnabled: bool('DECISIONS', cfg.decisionsEnabled !== false),
@@ -446,6 +447,7 @@ const router = {
 
     // 1) Persistir eventId y flags XML en el .env (fuente única de verdad)
     const nextEnv = { RRS_EVENT_ID: body.eventId };
+    if (body.externalResultsUrl !== undefined) nextEnv.EXTERNALRESULTS = body.externalResultsUrl;
     CONFIG_FLAGS.forEach(({ envKey, cfgKey }) => {
       if (body[cfgKey] !== undefined) nextEnv[envKey] = body[cfgKey] ? 'true' : 'false';
     });
