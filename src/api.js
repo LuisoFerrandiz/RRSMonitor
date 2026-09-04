@@ -274,6 +274,77 @@ function writeEnv(env) {
 /* Archive (HTML autocontenido)                                         */
 /* ------------------------------------------------------------------ */
 
+function filterStateByEnabledFlags(state) {
+  const filtered = { ...state };
+
+  // Omitir secciones deshabilitadas
+  if (!CONFIG.documentsEnabled) {
+    delete filtered.documentRows;
+    delete filtered.documentRowCount;
+  }
+  if (!CONFIG.questionsEnabled) {
+    delete filtered.questionRows;
+    delete filtered.questionRowCount;
+  }
+  if (!CONFIG.scoringEnquiriesEnabled) {
+    delete filtered.scoringInquiryRows;
+    delete filtered.scoringInquiryRowCount;
+  }
+  if (!CONFIG.onWaterPenaltiesEnabled) {
+    delete filtered.onWaterPenaltyRows;
+    delete filtered.onWaterPenaltyRowCount;
+    delete filtered.penaltyRows; // alias para compatibilidad
+  }
+  if (!CONFIG.penaltyReportsEnabled) {
+    delete filtered.penaltyReportRows;
+    delete filtered.penaltyReportRowCount;
+  }
+  if (!CONFIG.retirementsEnabled) {
+    delete filtered.retirementRows;
+    delete filtered.retirementRowCount;
+  }
+  if (!CONFIG.crewSubstitutionsEnabled) {
+    delete filtered.crewSubstitutionRows;
+    delete filtered.crewSubstitutionRowCount;
+  }
+  if (!CONFIG.equipmentSubstitutionsEnabled) {
+    delete filtered.equipmentSubstitutionRows;
+    delete filtered.equipmentSubstitutionRowCount;
+  }
+
+  // Omitir datos de Trello de secciones deshabilitadas
+  if (!CONFIG.documentsEnabled && filtered.trelloDocumentCards) {
+    delete filtered.trelloDocumentCards;
+  }
+  if (!CONFIG.questionsEnabled && filtered.trelloQuestionCards) {
+    delete filtered.trelloQuestionCards;
+  }
+  if (!CONFIG.scoringEnquiriesEnabled && filtered.trelloScoringInquiryCards) {
+    delete filtered.trelloScoringInquiryCards;
+  }
+
+  return filtered;
+}
+
+function isEntryEnabledByFlags(entry) {
+  const tipo = entry.tipo || '';
+
+  // Hearings y Decisions siempre incluidos
+  if (tipo === 'Hearing' || tipo === 'Decision') return true;
+
+  // Otros tipos según FLAGS
+  if (tipo === 'Document' && !CONFIG.documentsEnabled) return false;
+  if (tipo === 'Q&A' && !CONFIG.questionsEnabled) return false;
+  if (tipo === 'Scoring Enquiry' && !CONFIG.scoringEnquiriesEnabled) return false;
+  if (tipo === 'Penalty Report' && !CONFIG.penaltyReportsEnabled) return false;
+  if (tipo === 'Retirement' && !CONFIG.retirementsEnabled) return false;
+  if (tipo === 'Crew Substitution' && !CONFIG.crewSubstitutionsEnabled) return false;
+  if (tipo === 'Equipment Substitution' && !CONFIG.equipmentSubstitutionsEnabled) return false;
+  if (tipo === 'On-Water Penalty' && !CONFIG.onWaterPenaltiesEnabled) return false;
+
+  return true;
+}
+
 function buildArchiveHtml() {
   const viewer = readFileSafe(VIEWER_FILE);
   if (!viewer) return null;
@@ -281,19 +352,44 @@ function buildArchiveHtml() {
   const state = readJson(STATE_FILE, {});
   const schedule = readJson(SCHEDULE_FILE, { plans: [] });
   const kanban = readJson(KANBAN_FILE, { cards: {} });
-  const monitorConfig = loadMonitorConfig() || {};
   const userCatalog = loadUsers();
+
+  // Filtrar estado según FLAGS habilitados
+  const filteredState = filterStateByEnabledFlags(state.state || state);
+
+  // Filtrar historial según FLAGS habilitados
+  const historyLines = (readFileSafe(HISTORY_FILE) || '').split('\n').filter(line => {
+    if (!line.trim()) return false;
+    try {
+      const entry = JSON.parse(line);
+      return isEntryEnabledByFlags(entry);
+    } catch {
+      return false;
+    }
+  });
+  const historyRaw = historyLines.join('\n') + (historyLines.length ? '\n' : '');
+
+  // Filtrar cambios según FLAGS habilitados
+  const changeLines = (readFileSafe(CHANGES_FILE) || '').split('\n').filter(line => {
+    if (!line.trim()) return false;
+    try {
+      const entry = JSON.parse(line);
+      return isEntryEnabledByFlags(entry);
+    } catch {
+      return false;
+    }
+  });
+  const changesRaw = changeLines.join('\n') + (changeLines.length ? '\n' : '');
 
   const archive = {
     version: 1,
     exportedAt: new Date().toISOString(),
-    state: state.state || state,
-    historyRaw: readFileSafe(HISTORY_FILE),
-    changesRaw: readFileSafe(CHANGES_FILE),
+    state: filteredState,
+    historyRaw,
+    changesRaw,
     cleanupArchiveRaw: readFileSafe(CLEANUP_ARCHIVE_FILE),
     schedule,
     kanban: { cards: kanban.cards || {}, labelCatalog: readJson(KANBAN_LABELS_FILE, { labels: [] }), judgeCatalog: readJson(KANBAN_JUDGES_FILE, { judges: [] }), roleCatalog: readJson(KANBAN_ROLES_FILE, { roles: [] }) },
-    monitorConfig,
     userCatalog,
   };
 
@@ -303,13 +399,7 @@ function buildArchiveHtml() {
   // También marcamos el modo archivo para que el dashboard no llame a la API
   const injected = viewer.replace(/(<\/head>)/i, `${snippet}\n$1`);
 
-  // Sustituir título si disponible
-  const title = monitorConfig.eventTitle;
-  const withTitle = title
-    ? injected.replace(/(<title>)[^<]*(<\/title>)/i, `$1${title} — RRS Monitor$2`)
-    : injected;
-
-  return withTitle;
+  return injected;
 }
 
 /* ------------------------------------------------------------------ */
