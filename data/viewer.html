@@ -1105,6 +1105,13 @@ const CHANGE_TABLE_COLUMNS = [
     { label: 'Details', width: 'col-auto', sortKey: 'detail' },
 ];
 
+const DOCUMENTS_TABLE_COLUMNS = [
+    { label: 'Date & Time', width: 'col-sm', sortKey: 'ts' },
+    { label: 'Type', width: 'col-xs', sortKey: 'tipo' },
+    { label: 'Action', width: 'col-sm', align: 'center', sortKey: 'action' },
+    { label: 'Details', width: 'col-auto', sortKey: 'detail' },
+];
+
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
@@ -3658,7 +3665,7 @@ function renderEquipmentSubmissionsTable() {
 }
 
 function renderDocumentsTable() {
-    const cols = CHANGE_TABLE_COLUMNS;
+    const cols = DOCUMENTS_TABLE_COLUMNS;
     tableHead.innerHTML = buildTableHead(cols, 'documents');
 
     const search = searchInput?.value?.trim() || "";
@@ -3693,7 +3700,6 @@ function renderDocumentsTable() {
                 ${cell(ts, "px-4 py-3 text-xs whitespace-nowrap")}
                 ${cell(item.tipo, "px-4 py-3 text-sm font-medium")}
                 <td class="px-4 py-3 text-center">${actionBadge(item.action)}</td>
-                ${cell(item.ref, "px-4 py-3 text-sm font-semibold")}
                 ${detailCell(item.detail, downloadHtml)}
             </tr>
         `;
