@@ -4379,17 +4379,6 @@ function kanbanRenderTimeLimitCardFace(card) {
 
 function kanbanRenderCardFace(card) {
   const column = card.column || "hearing_request";
-  if (card.minimalView && column === "decided") {
-    return kanbanRenderDecidedMinimalCardFace(card);
-  }
-  if (card.minimalView) {
-    return `
-    <article class="kanban-card rrs-card rounded-lg p-3 ${kanbanCardFaceClasses()} shadow-sm"${kanbanCardDragAttr()}
-      data-case-key="${kanbanEscapeHtml(card.caseKey)}">
-      ${kanbanRenderCardHeader(card)}
-    </article>`;
-  }
-
   const fields = kanbanVisibleFieldsForColumn(column);
   const notes = String(card.notes || "").trim();
   const notesPreview = kanbanCardBodyText(notes, 120, card);
@@ -4397,13 +4386,13 @@ function kanbanRenderCardFace(card) {
   const decisionPreview = kanbanCardBodyText(decision, 160, card);
 
   const rows = [];
-  if (fields.has("initiator")) {
+  if (fields.has("initiator") && !card.minimalView) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Initiator:</span> ${kanbanEscapeHtml(card.initiator || "—")}</div>`);
   }
-  if (fields.has("respondent")) {
+  if (fields.has("respondent") && !card.minimalView) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Respondent:</span> ${kanbanEscapeHtml(card.respondent || "—")}</div>`);
   }
-  if (fields.has("race")) {
+  if (fields.has("race") && !card.minimalView) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Race:</span> ${kanbanEscapeHtml(card.race || "—")}</div>`);
   }
   if (fields.has("type")) {
@@ -4413,8 +4402,8 @@ function kanbanRenderCardFace(card) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">T.Schedule:</span> ${kanbanEscapeHtml(kanbanFormatSchedule(card.schedule))}</div>`);
   }
 
-  const showForm = fields.has("form") && card.protestFormUrl;
-  const showDecisionLink = fields.has("decisionUrl") && card.decisionUrl;
+  const showForm = fields.has("form") && card.protestFormUrl && !card.minimalView;
+  const showDecisionLink = fields.has("decisionUrl") && card.decisionUrl && !card.minimalView;
   const judgesHtml = fields.has("judges") ? kanbanRenderCardJudgeBadges(card) : "";
 
   return `
