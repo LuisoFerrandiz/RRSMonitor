@@ -2313,7 +2313,7 @@ function buildRestoreBundle() {
     return {
         format: "rrs-restore-v1",
         exportedAt: new Date().toISOString(),
-        generatedAt: arch?.generatedAt || null,
+        generatedAt: arch?.exportedAt || null,
         eventId: stateData?.eventId || arch?.eventId || monitorConfig?.eventId || null,
         monitorConfig,
         state: stateData || {},
@@ -5124,9 +5124,9 @@ async function kanbanFetchData() {
   if (window.__RRS_ARCHIVE__) {
     return {
       cards: window.__RRS_ARCHIVE__.kanban?.cards || {},
-      labelCatalog: window.__RRS_ARCHIVE__.labelCatalog || { labels: [...KANBAN_LABEL_CATALOG_DEFAULT] },
-      judgeCatalog: window.__RRS_ARCHIVE__.judgeCatalog || { judges: [] },
-      roleCatalog: window.__RRS_ARCHIVE__.roleCatalog || { roles: kanbanRoleCatalog.roles || [] },
+      labelCatalog: window.__RRS_ARCHIVE__.kanban?.labelCatalog || { labels: [...KANBAN_LABEL_CATALOG_DEFAULT] },
+      judgeCatalog: window.__RRS_ARCHIVE__.kanban?.judgeCatalog || { judges: [] },
+      roleCatalog: window.__RRS_ARCHIVE__.kanban?.roleCatalog || { roles: kanbanRoleCatalog.roles || [] },
       userCatalog: window.__RRS_ARCHIVE__.userCatalog || { users: [] },
     };
   }
