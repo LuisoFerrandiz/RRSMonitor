@@ -293,37 +293,38 @@
             color: #fff;
         }
         .rrs-btn.rrs-kanban-btn {
-            background: var(--rrs-inactive-bg);
-            color: var(--rrs-inactive-text);
-            border-color: var(--rrs-inactive-border);
-            transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s;
-        }
-        .rrs-btn.rrs-kanban-btn .rrs-icon-accent {
-            color: var(--rrs-inactive-text) !important;
-        }
-        .rrs-btn.rrs-kanban-btn:hover {
-            background: linear-gradient(135deg, var(--rrs-inactive-bg) 0%, var(--rrs-inactive-bg-alt) 100%);
-            color: var(--rrs-inactive-text);
-            border-color: var(--rrs-inactive-muted);
-            box-shadow: 0 4px 14px rgba(var(--rrs-purple-glow), 0.18);
-        }
-        .rrs-btn.rrs-kanban-btn:hover .rrs-icon-accent {
-            color: var(--rrs-inactive-text) !important;
-        }
-        .rrs-btn.rrs-kanban-btn--selected {
             background: linear-gradient(135deg, var(--rrs-gold), #f5d978);
             color: var(--rrs-purple-deep);
             border-color: var(--rrs-gold);
-            box-shadow: 0 1px 6px rgba(var(--rrs-gold-glow), 0.4);
+            transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s;
+            box-shadow: 0 2px 8px rgba(var(--rrs-gold-glow), 0.3);
+        }
+        .rrs-btn.rrs-kanban-btn .rrs-icon-accent {
+            color: var(--rrs-purple-deep) !important;
+        }
+        .rrs-btn.rrs-kanban-btn:hover {
+            background: linear-gradient(135deg, #f5d978, var(--rrs-gold));
+            color: var(--rrs-purple-deep);
+            border-color: var(--rrs-purple-mid);
+            box-shadow: 0 4px 14px rgba(var(--rrs-gold-glow), 0.35);
+        }
+        .rrs-btn.rrs-kanban-btn:hover .rrs-icon-accent {
+            color: var(--rrs-purple-deep) !important;
+        }
+        .rrs-btn.rrs-kanban-btn--selected {
+            background: linear-gradient(135deg, #fce66d, #ffeb99);
+            color: var(--rrs-purple-deep);
+            border-color: #ffb800;
+            box-shadow: 0 4px 12px rgba(var(--rrs-gold-glow), 0.5);
         }
         .rrs-btn.rrs-kanban-btn--selected .rrs-icon-accent {
             color: var(--rrs-purple-deep) !important;
         }
         .rrs-btn.rrs-kanban-btn--selected:hover {
-            background: linear-gradient(135deg, #f5d978, var(--rrs-gold));
+            background: linear-gradient(135deg, #ffeb99, #fce66d);
             color: var(--rrs-purple-deep);
-            border-color: var(--rrs-purple-mid);
-            box-shadow: 0 4px 14px rgba(var(--rrs-gold-glow), 0.45);
+            border-color: #ff9500;
+            box-shadow: 0 4px 16px rgba(var(--rrs-gold-glow), 0.6);
         }
         .rrs-btn.rrs-kanban-btn--selected:hover .rrs-icon-accent {
             color: var(--rrs-purple-deep) !important;
