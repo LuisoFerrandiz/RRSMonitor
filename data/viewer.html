@@ -493,6 +493,10 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     <i class="fas fa-clock rrs-icon-accent text-base"></i>
                     <span id="stat-timelimit-line" class="text-base font-bold" style="color: var(--rrs-muted);">Time Limit (0/0)</span>
                 </div>
+                <div id="sailti-results-row" onclick="switchTab('sailtiResults')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer hidden">
+                    <i class="fas fa-trophy rrs-icon-accent text-base"></i>
+                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-sailti-results-line">Results </div>
+                </div>
                 <button type="button" id="hearingsKanbanBtn" onclick="event.stopPropagation(); switchTab('kanban');"
                     class="rrs-btn rrs-kanban-btn mt-2 ml-6 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide self-start whitespace-nowrap">
                     <i class="fas fa-columns mr-1.5 rrs-icon-accent text-base"></i>KANBAN (0)
@@ -504,10 +508,6 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 <div id="documents-row" onclick="switchTab('documents')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-file-pdf rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-documents-line">Documents (0/0)</div>
-                </div>
-                <div id="sailti-results-row" onclick="switchTab('sailtiResults')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer hidden">
-                    <i class="fas fa-trophy rrs-icon-accent text-base"></i>
-                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-sailti-results-line">Results </div>
                 </div>
                 <div id="qa-row" onclick="switchTab('qa')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-question-circle rrs-icon-accent text-base"></i>
@@ -2907,7 +2907,7 @@ function updateStats() {
             ? "Documents SAILTI"
             : "Documents";
     setT('stat-documents-line', `${documentsLabel} (${xy.documents.current}/${xy.documents.total})`);
-    setT('stat-sailti-results-line', 'Results SAILTI');
+    setT('stat-sailti-results-line', 'Results');
     setT('stat-penalties-line', `On the water penalties (${(stateData.onWaterPenaltyRows || stateData.penaltyRows || []).length})`);
     setT('stat-penalty-reports-line', `Penalty Reports (${(stateData.penaltyReportRows || []).length})`);
     const retirementCount = (stateData.retirementRows || []).length;
