@@ -1112,6 +1112,14 @@ const DOCUMENTS_TABLE_COLUMNS = [
     { label: 'Details', width: 'col-auto', sortKey: 'detail' },
 ];
 
+const QA_TABLE_COLUMNS = [
+    { label: 'Date & Time', width: 'col-sm', sortKey: 'ts' },
+    { label: 'Type', width: 'col-xs', sortKey: 'tipo' },
+    { label: 'Action', width: 'col-sm', align: 'center', sortKey: 'action' },
+    { label: 'Ref', width: 'col-sm', sortKey: 'ref' },
+    { label: 'Details', width: 'col-auto', sortKey: 'detail' },
+];
+
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
@@ -3707,7 +3715,7 @@ function renderDocumentsTable() {
 }
 
 function renderQaTable() {
-    const cols = CHANGE_TABLE_COLUMNS;
+    const cols = QA_TABLE_COLUMNS;
     tableHead.innerHTML = buildTableHead(cols, 'qa');
 
     const search = searchInput?.value?.trim() || "";
