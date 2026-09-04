@@ -2415,6 +2415,7 @@ async function saveConfig() {
         if (res.ok && data.ok) {
             setConfigStatus("Configuration saved", "ok");
             const cfg = data.config;
+            if (window.dashboardData) window.dashboardData.monitorConfig = cfg;
             applyEventBranding(cfg || {});
             applyFeatureVisibility(cfg || {});
             applyHeaderRrsLink(resolveRrsTargetUrl(cfg || {}, null));
