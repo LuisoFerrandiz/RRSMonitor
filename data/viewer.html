@@ -1120,6 +1120,14 @@ const QA_TABLE_COLUMNS = [
     { label: 'Details', width: 'col-auto', sortKey: 'detail' },
 ];
 
+const SCORING_TABLE_COLUMNS = [
+    { label: 'Date & Time', width: 'col-sm', sortKey: 'ts' },
+    { label: 'Type', width: 'col-xs', sortKey: 'tipo' },
+    { label: 'Action', width: 'col-sm', align: 'center', sortKey: 'action' },
+    { label: 'Ref', width: 'col-sm', sortKey: 'ref' },
+    { label: 'Details', width: 'col-auto', sortKey: 'detail' },
+];
+
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
@@ -3760,7 +3768,7 @@ function renderQaTable() {
 }
 
 function renderScoringTable() {
-    const cols = CHANGE_TABLE_COLUMNS;
+    const cols = SCORING_TABLE_COLUMNS;
     tableHead.innerHTML = buildTableHead(cols, 'scoring');
 
     const search = searchInput?.value?.trim() || "";
