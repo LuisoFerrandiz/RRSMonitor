@@ -497,6 +497,10 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     <i class="fas fa-trophy rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-sailti-results-line">Results </div>
                 </div>
+                <div id="tracking-row" onclick="switchTab('tracking')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer hidden">
+                    <i class="fas fa-satellite rrs-icon-accent text-base"></i>
+                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-tracking-line">Tracking </div>
+                </div>
                 <button type="button" id="hearingsKanbanBtn" onclick="event.stopPropagation(); switchTab('kanban');"
                     class="rrs-btn rrs-kanban-btn mt-2 ml-6 px-4 py-2 rounded-lg text-sm font-bold uppercase tracking-wide self-start whitespace-nowrap">
                     <i class="fas fa-columns mr-1.5 rrs-icon-accent text-base"></i>KANBAN (0)
@@ -624,6 +628,11 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
             <!-- Results SAILTI (iframe embebido) -->
             <div id="sailtiResultsPanel" class="hidden">
                 <iframe id="sailtiResultsFrame" title="Results SAILTI" class="w-full border-0 block" style="min-height: 75vh; background: var(--rrs-surface);"></iframe>
+            </div>
+
+            <!-- Tracking (iframe embebido) -->
+            <div id="trackingPanel" class="hidden">
+                <iframe id="trackingFrame" title="Tracking" class="w-full border-0 block" style="min-height: 75vh; background: var(--rrs-surface);"></iframe>
             </div>
 
         </div>
@@ -973,6 +982,15 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://data.orc.org/public/WEV.dll?..."
                         style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
                 </div>
+
+                <div class="border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
+                    <h3 class="text-sm font-bold flex items-center gap-2" style="color: var(--rrs-text);">
+                        <i class="fas fa-satellite rrs-icon-primary"></i> External Tracking URL
+                    </h3>
+                    <input id="configExternalTracking" type="text"
+                        class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://tracking.example.com/..."
+                        style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                </div>
             </div>
             <div class="flex items-center justify-end gap-2 px-5 py-4 border-t" style="border-color: var(--rrs-border);">
                 <p id="configModalStatus" class="hidden mr-auto text-sm italic"></p>
@@ -1099,6 +1117,7 @@ const configCancelBtn = document.getElementById('configCancelBtn');
 const configSaveBtn = document.getElementById('configSaveBtn');
 const configEventId = document.getElementById('configEventId');
 const configExternalResults = document.getElementById('configExternalResults');
+const configExternalTracking = document.getElementById('configExternalTracking');
 const configToggles = document.getElementById('configToggles');
 const configModalStatus = document.getElementById('configModalStatus');
 const loginModal = document.getElementById('loginModal');
@@ -1388,6 +1407,7 @@ function isArchiveView() {
 function isMonitorFeatureEnabled(featureKey, monitorCfg = getMonitorCfg()) {
     if (isArchiveView()) return true;
     if (featureKey === "sailtiResultsEnabled") return monitorCfg.sailtiResultsEnabled === true;
+    if (featureKey === "trackingEnabled") return monitorCfg.trackingEnabled === true;
     return monitorCfg[featureKey] !== false;
 }
 
@@ -1540,6 +1560,7 @@ function firstEnabledDashboardTab(monitorCfg = {}) {
     const infoTabs = [
         { tab: "documents", enabled: cfg.documentsEnabled !== false },
         { tab: "sailtiResults", enabled: cfg.sailtiResultsEnabled === true },
+        { tab: "tracking", enabled: cfg.trackingEnabled === true },
         { tab: "qa", enabled: cfg.questionsEnabled !== false },
         { tab: "scoring", enabled: cfg.scoringEnquiriesEnabled !== false },
         { tab: "penalties", enabled: cfg.penaltiesEnabled !== false },
@@ -1555,6 +1576,7 @@ function applyFeatureVisibility(monitorCfg = {}) {
     const features = [
         { key: "documentsEnabled", rowId: "documents-row", tab: "documents" },
         { key: "sailtiResultsEnabled", rowId: "sailti-results-row", tab: "sailtiResults" },
+        { key: "trackingEnabled", rowId: "tracking-row", tab: "tracking" },
         { key: "questionsEnabled", rowId: "qa-row", tab: "qa" },
         { key: "scoringEnquiriesEnabled", rowId: "scoring-row", tab: "scoring" },
         { key: "penaltiesEnabled", rowId: "penalties-row", tab: "penalties" },
@@ -2340,6 +2362,7 @@ const CONFIG_TOGGLE_DEFS = [
     { key: "crewSubstitutionsEnabled", id: "crewSubstitutions", label: "Crew Substitutions", icon: "fa-users", env: "CREWCHANGES" },
     { key: "equipmentSubstitutionsEnabled", id: "equipmentSubstitutions", label: "Equipment Substitutions", icon: "fa-toolbox", env: "EQUIPMENTSUBSTITUTIONS" },
     { key: "sailtiResultsEnabled", id: "sailtiResults", label: "Results", icon: "fa-ranking-star", env: "SAILTIRESULTS" },
+    { key: "trackingEnabled", id: "tracking", label: "Tracking", icon: "fa-satellite", env: "TRACKING" },
 ];
 
 function setConfigStatus(msg, type = "info") {
@@ -2378,6 +2401,7 @@ async function openConfigModal() {
         const cfg = await res.json();
         configEventId.value = cfg.eventId || "";
         configExternalResults.value = cfg.externalResultsUrl || "";
+        configExternalTracking.value = cfg.externalTrackingUrl || "";
         renderConfigToggles(cfg);
         setConfigStatus("", "info");
     } catch {
@@ -2399,6 +2423,7 @@ async function saveConfig() {
     }
     const payload = { eventId };
     payload.externalResultsUrl = (configExternalResults?.value || "").trim();
+    payload.externalTrackingUrl = (configExternalTracking?.value || "").trim();
     CONFIG_TOGGLE_DEFS.forEach((def) => {
         const el = configToggles?.querySelector(`[data-config-toggle="${def.id}"]`);
         if (el) payload[def.key] = el.checked;
@@ -2908,6 +2933,7 @@ function updateStats() {
             : "Documents";
     setT('stat-documents-line', `${documentsLabel} (${xy.documents.current}/${xy.documents.total})`);
     setT('stat-sailti-results-line', 'Results');
+    setT('stat-tracking-line', 'Tracking');
     setT('stat-penalties-line', `On the water penalties (${(stateData.onWaterPenaltyRows || stateData.penaltyRows || []).length})`);
     setT('stat-penalty-reports-line', `Penalty Reports (${(stateData.penaltyReportRows || []).length})`);
     const retirementCount = (stateData.retirementRows || []).length;
@@ -2941,15 +2967,18 @@ function updateStats() {
 function updateKanbanPanelVisibility() {
     const isKanban = currentTab === "kanban";
     const isSailtiResults = currentTab === "sailtiResults";
-    document.getElementById("searchFilterBar")?.classList.toggle("hidden", isKanban || isSailtiResults);
-    document.getElementById("tablePanel")?.classList.toggle("hidden", isKanban || isSailtiResults);
+    const isTracking = currentTab === "tracking";
+    document.getElementById("searchFilterBar")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking);
+    document.getElementById("tablePanel")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking);
     document.getElementById("kanbanPanel")?.classList.toggle("hidden", !isKanban);
     document.getElementById("sailtiResultsPanel")?.classList.toggle("hidden", !isSailtiResults);
-    document.getElementById("filterSourceWrap")?.classList.toggle("hidden", isKanban || isSailtiResults || currentTab !== "history");
+    document.getElementById("trackingPanel")?.classList.toggle("hidden", !isTracking);
+    document.getElementById("filterSourceWrap")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking || currentTab !== "history");
     if (searchInput) {
         searchInput.placeholder = currentTab === "history" ? "Search log..." : "Search...";
     }
     if (isSailtiResults) renderSailtiResultsEmbed();
+    if (isTracking) renderTrackingEmbed();
 }
 
 function getSailtiResultsEmbedUrl() {
@@ -2961,6 +2990,26 @@ function renderSailtiResultsEmbed() {
     const frame = document.getElementById("sailtiResultsFrame");
     if (!frame) return;
     const url = getSailtiResultsEmbedUrl();
+    if (!url) {
+        frame.removeAttribute("src");
+        frame.dataset.embedUrl = "";
+        return;
+    }
+    if (frame.dataset.embedUrl !== url) {
+        frame.dataset.embedUrl = url;
+        frame.src = url;
+    }
+}
+
+function getTrackingEmbedUrl() {
+    if (!isMonitorFeatureEnabled("trackingEnabled")) return "";
+    return getMonitorCfg().externalTrackingUrl || "";
+}
+
+function renderTrackingEmbed() {
+    const frame = document.getElementById("trackingFrame");
+    if (!frame) return;
+    const url = getTrackingEmbedUrl();
     if (!url) {
         frame.removeAttribute("src");
         frame.dataset.embedUrl = "";

@@ -48,6 +48,7 @@ const CONFIG_FLAGS = [
   { envKey: 'RETIREMENTS', cfgKey: 'retirementsEnabled' },
   { envKey: 'SAILTIRESULTS', cfgKey: 'sailtiResultsEnabled' },
   { envKey: 'EQUIPMENTSUBSTITUTIONS', cfgKey: 'equipmentSubstitutionsEnabled' },
+  { envKey: 'TRACKING', cfgKey: 'trackingEnabled' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -224,8 +225,9 @@ function normalizeConfig(cfg) {
     sailtiResultsEnabled: bool('SAILTIRESULTS', cfg.sailtiResultsEnabled),
     sailtiResultsUrl: cfg.sailtiResultsUrl || '',
     externalResultsUrl: env.EXTERNALRESULTS || cfg.externalResultsUrl || '',
-    trackingEnabled: !!cfg.trackingEnabled,
+    trackingEnabled: bool('TRACKING', cfg.trackingEnabled),
     trackingUrl: cfg.trackingUrl || '',
+    externalTrackingUrl: env.EXTERNAL_TRACKING || cfg.externalTrackingUrl || '',
     decisionsEnabled: bool('DECISIONS', cfg.decisionsEnabled !== false),
     decisionsUrl: resolve('RRS_DECISIONS_URL', cfg.decisionsUrl),
     questionsEnabled: bool('QUESTIONS', cfg.questionsEnabled),
@@ -448,6 +450,7 @@ const router = {
     // 1) Persistir eventId y flags XML en el .env (fuente única de verdad)
     const nextEnv = { RRS_EVENT_ID: body.eventId };
     if (body.externalResultsUrl !== undefined) nextEnv.EXTERNALRESULTS = body.externalResultsUrl;
+    if (body.externalTrackingUrl !== undefined) nextEnv.EXTERNAL_TRACKING = body.externalTrackingUrl;
     CONFIG_FLAGS.forEach(({ envKey, cfgKey }) => {
       if (body[cfgKey] !== undefined) nextEnv[envKey] = body[cfgKey] ? 'true' : 'false';
     });
