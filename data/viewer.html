@@ -963,33 +963,52 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 <button id="configModalClose" type="button" class="text-xl leading-none px-2" style="color: var(--rrs-muted);">&times;</button>
             </div>
             <div class="p-5 space-y-5 overflow-y-auto custom-scrollbar">
+                <!-- Table 1: Event + Documents -->
                 <div class="border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
-                    <h3 class="text-sm font-bold flex items-center gap-2" style="color: var(--rrs-text);">
-                        <i class="fas fa-calendar-days rrs-icon-primary"></i> Event
-                    </h3>
-                    <input id="configEventId" type="text" inputmode="numeric" pattern="[0-9]*"
-                        class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="13730"
-                        style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                    <div class="flex items-end gap-4">
+                        <div class="flex-1">
+                            <h3 class="text-sm font-bold flex items-center gap-2 mb-2" style="color: var(--rrs-text);">
+                                <i class="fas fa-calendar-days rrs-icon-primary"></i> Event
+                            </h3>
+                            <input id="configEventId" type="text" inputmode="numeric" pattern="[0-9]*"
+                                class="w-full px-3 py-2 text-sm rounded-lg border" placeholder="13730"
+                                style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                        </div>
+                        <div class="flex-none" id="configDocumentsContainer"></div>
+                    </div>
                 </div>
 
-                <div id="configToggles" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
-
+                <!-- Table 2: Main Features (3 columns) -->
                 <div class="border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
-                    <h3 class="text-sm font-bold flex items-center gap-2" style="color: var(--rrs-text);">
-                        <i class="fas fa-trophy rrs-icon-primary"></i> External Results URL
-                    </h3>
-                    <input id="configExternalResults" type="text"
-                        class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://data.orc.org/public/WEV.dll?..."
-                        style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                    <h3 class="text-sm font-bold mb-3" style="color: var(--rrs-text);">Features</h3>
+                    <div id="configMainToggles" class="grid grid-cols-1 sm:grid-cols-3 gap-2"></div>
                 </div>
 
+                <!-- Table 3: Results & Tracking -->
                 <div class="border rounded-lg p-4" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
-                    <h3 class="text-sm font-bold flex items-center gap-2" style="color: var(--rrs-text);">
-                        <i class="fas fa-satellite rrs-icon-primary"></i> External Tracking URL
-                    </h3>
-                    <input id="configExternalTracking" type="text"
-                        class="mt-2 w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://tracking.example.com/..."
-                        style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                    <h3 class="text-sm font-bold mb-3" style="color: var(--rrs-text);">External Sources</h3>
+
+                    <!-- Results Row -->
+                    <div class="flex items-end gap-4 mb-4">
+                        <div class="flex-none" id="configResultsToggleContainer"></div>
+                        <div class="flex-1">
+                            <label class="text-xs font-semibold mb-1 block" style="color: var(--rrs-muted);">External Results URL</label>
+                            <input id="configExternalResults" type="text"
+                                class="w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://data.orc.org/public/WEV.dll?..."
+                                style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                        </div>
+                    </div>
+
+                    <!-- Tracking Row -->
+                    <div class="flex items-end gap-4">
+                        <div class="flex-none" id="configTrackingToggleContainer"></div>
+                        <div class="flex-1">
+                            <label class="text-xs font-semibold mb-1 block" style="color: var(--rrs-muted);">External Tracking URL</label>
+                            <input id="configExternalTracking" type="text"
+                                class="w-full px-3 py-2 text-sm rounded-lg border" placeholder="https://tracking.example.com/..."
+                                style="border-color: var(--rrs-border); background: var(--rrs-bg); color: var(--rrs-text);">
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="flex items-center justify-end gap-2 px-5 py-4 border-t" style="border-color: var(--rrs-border);">
@@ -2352,8 +2371,8 @@ function closeBackupModal() {
     if (backupModal) backupModal.classList.add("hidden");
 }
 
-const CONFIG_TOGGLE_DEFS = [
-    { key: "documentsEnabled", id: "documents", label: "Documents", icon: "fa-file-pdf", env: "DOCUMENTS" },
+// Main toggles for Table 2 (Features grid - 3 columns)
+const CONFIG_MAIN_TOGGLES = [
     { key: "questionsEnabled", id: "qa", label: "Q&A", icon: "fa-question-circle", env: "QUESTIONS" },
     { key: "scoringEnquiriesEnabled", id: "scoring", label: "Scoring inquiries", icon: "fa-calculator", env: "SCORINGENQUIRIES" },
     { key: "penaltiesEnabled", id: "penalties", label: "On the water penalties", icon: "fa-flag", env: "ONWATERPENALTIES" },
@@ -2361,8 +2380,21 @@ const CONFIG_TOGGLE_DEFS = [
     { key: "retirementsEnabled", id: "retirements", label: "Retirements", icon: "fa-person-walking", env: "RETIREMENTS" },
     { key: "crewSubstitutionsEnabled", id: "crewSubstitutions", label: "Crew Substitutions", icon: "fa-users", env: "CREWCHANGES" },
     { key: "equipmentSubstitutionsEnabled", id: "equipmentSubstitutions", label: "Equipment Substitutions", icon: "fa-toolbox", env: "EQUIPMENTSUBSTITUTIONS" },
-    { key: "sailtiResultsEnabled", id: "sailtiResults", label: "Results", icon: "fa-ranking-star", env: "SAILTIRESULTS" },
-    { key: "trackingEnabled", id: "tracking", label: "Tracking", icon: "fa-satellite", env: "TRACKING" },
+];
+
+// Special toggles (individual containers)
+const CONFIG_SPECIAL_TOGGLES = {
+    documents: { key: "documentsEnabled", id: "documents", label: "Documents", icon: "fa-file-pdf", env: "DOCUMENTS" },
+    sailtiResults: { key: "sailtiResultsEnabled", id: "sailtiResults", label: "Results", icon: "fa-ranking-star", env: "SAILTIRESULTS" },
+    tracking: { key: "trackingEnabled", id: "tracking", label: "Tracking", icon: "fa-satellite", env: "TRACKING" },
+};
+
+// All toggles combined (for backwards compatibility with CONFIG_FLAGS processing)
+const CONFIG_TOGGLE_DEFS = [
+    ...CONFIG_MAIN_TOGGLES,
+    CONFIG_SPECIAL_TOGGLES.documents,
+    CONFIG_SPECIAL_TOGGLES.sailtiResults,
+    CONFIG_SPECIAL_TOGGLES.tracking,
 ];
 
 function setConfigStatus(msg, type = "info") {
@@ -2373,21 +2405,45 @@ function setConfigStatus(msg, type = "info") {
     configModalStatus.classList.toggle("hidden", !msg);
 }
 
+function renderConfigToggle(def, cfg = {}) {
+    return `<label class="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border cursor-pointer" style="border-color: var(--rrs-border); background: var(--rrs-surface);">
+        <span class="flex items-center gap-3 min-w-0">
+            <i class="fas ${def.icon} rrs-icon-accent text-base"></i>
+            <span class="text-sm font-semibold" style="color: var(--rrs-text);">${def.label}</span>
+        </span>
+        <span class="rrs-switch">
+            <input type="checkbox" data-config-toggle="${def.id}" ${cfg[def.key] ? "checked" : ""} class="rrs-switch-input">
+            <span class="rrs-switch-track"></span>
+            <span class="rrs-switch-thumb"></span>
+        </span>
+    </label>`;
+}
+
+function renderConfigMainToggles(cfg = {}) {
+    const mainToggles = document.getElementById("configMainToggles");
+    if (!mainToggles) return;
+    mainToggles.innerHTML = CONFIG_MAIN_TOGGLES.map((def) => renderConfigToggle(def, cfg)).join("");
+}
+
+function renderConfigSpecialToggles(cfg = {}) {
+    const documentsContainer = document.getElementById("configDocumentsContainer");
+    const resultsContainer = document.getElementById("configResultsToggleContainer");
+    const trackingContainer = document.getElementById("configTrackingToggleContainer");
+
+    if (documentsContainer) {
+        documentsContainer.innerHTML = renderConfigToggle(CONFIG_SPECIAL_TOGGLES.documents, cfg);
+    }
+    if (resultsContainer) {
+        resultsContainer.innerHTML = renderConfigToggle(CONFIG_SPECIAL_TOGGLES.sailtiResults, cfg);
+    }
+    if (trackingContainer) {
+        trackingContainer.innerHTML = renderConfigToggle(CONFIG_SPECIAL_TOGGLES.tracking, cfg);
+    }
+}
+
 function renderConfigToggles(cfg = {}) {
-    if (!configToggles) return;
-    configToggles.innerHTML = CONFIG_TOGGLE_DEFS.map(
-        (def) => `<label class="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border cursor-pointer" style="border-color: var(--rrs-border); background: var(--rrs-surface);">
-            <span class="flex items-center gap-3 min-w-0">
-                <i class="fas ${def.icon} rrs-icon-accent text-base"></i>
-                <span class="text-sm font-semibold" style="color: var(--rrs-text);">${def.label}</span>
-            </span>
-            <span class="rrs-switch">
-                <input type="checkbox" data-config-toggle="${def.id}" ${cfg[def.key] ? "checked" : ""} class="rrs-switch-input">
-                <span class="rrs-switch-track"></span>
-                <span class="rrs-switch-thumb"></span>
-            </span>
-        </label>`
-    ).join("");
+    renderConfigMainToggles(cfg);
+    renderConfigSpecialToggles(cfg);
 }
 
 async function openConfigModal() {
@@ -2425,7 +2481,7 @@ async function saveConfig() {
     payload.externalResultsUrl = (configExternalResults?.value || "").trim();
     payload.externalTrackingUrl = (configExternalTracking?.value || "").trim();
     CONFIG_TOGGLE_DEFS.forEach((def) => {
-        const el = configToggles?.querySelector(`[data-config-toggle="${def.id}"]`);
+        const el = configModal?.querySelector(`[data-config-toggle="${def.id}"]`);
         if (el) payload[def.key] = el.checked;
     });
     configSaveBtn.disabled = true;
