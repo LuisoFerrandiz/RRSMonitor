@@ -1129,6 +1129,14 @@ const SCORING_TABLE_COLUMNS = [
     { label: 'Details', width: 'col-auto', sortKey: 'detail' },
 ];
 
+const HEARINGS_TABLE_COLUMNS = [
+    { label: 'Date & Time', width: 'w-[10rem]', sortKey: 'ts' },
+    { label: 'Type', width: 'w-[8rem]', sortKey: 'tipo' },
+    { label: 'Action', width: 'col-sm', align: 'center', sortKey: 'action' },
+    { label: 'Ref', width: 'col-sm', sortKey: 'ref' },
+    { label: 'Details', width: 'col-auto', sortKey: 'detail' },
+];
+
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
@@ -3312,7 +3320,7 @@ function renderLogMetricCells(row, metricCols, fmt = (v) => String(v ?? 0)) {
 }
 
 function renderHearingsTable() {
-    const cols = CHANGE_TABLE_COLUMNS;
+    const cols = HEARINGS_TABLE_COLUMNS;
     tableHead.innerHTML = buildTableHead(cols, 'hearings');
 
     const search = searchInput?.value?.trim() || "";
