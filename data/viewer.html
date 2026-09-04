@@ -4789,32 +4789,40 @@ async function kanbanToggleCardMinimalView(caseKey) {
     updatedAt: new Date().toISOString(),
   };
 
+  const nextData = {
+    cards: {
+      ...kanbanData.cards,
+      [caseKey]: nextCard,
+    },
+  };
+
+  kanbanData = nextData;
+
   try {
-    await kanbanSaveData({
-      cards: {
-        ...kanbanData.cards,
-        [caseKey]: nextCard,
-      },
-    });
-    const modal = document.getElementById("kanbanDetailModal");
-    const modalOpen = modal && !modal.classList.contains("hidden") && modal.dataset.caseKey === caseKey;
-    if (modalOpen) {
-      updateKanbanDetailMinimalToggle(nextCard);
-      updateKanbanDetailFieldVisibility(nextCard.column || "hearing_request", nextCard);
-      setKanbanDetailStatus(
-        nextCard.minimalView
-          ? ((nextCard.column || "hearing_request") === "decided" ? "Decision only" : "Minimal view enabled")
-          : "Full view",
-        true
-      );
-    }
-    renderKanbanBoard();
+    await kanbanSaveData(nextData);
   } catch (e) {
-    console.error("[Kanban] Error al cambiar vista:", e.message);
-    if (document.getElementById("kanbanDetailModal")?.dataset.caseKey === caseKey) {
-      setKanbanDetailStatus(`Error: ${e.message}`, false);
+    if (!e.message.includes("401")) {
+      console.error("[Kanban] Error al cambiar vista:", e.message);
+      if (document.getElementById("kanbanDetailModal")?.dataset.caseKey === caseKey) {
+        setKanbanDetailStatus(`Error: ${e.message}`, false);
+      }
+      return;
     }
   }
+
+  const modal = document.getElementById("kanbanDetailModal");
+  const modalOpen = modal && !modal.classList.contains("hidden") && modal.dataset.caseKey === caseKey;
+  if (modalOpen) {
+    updateKanbanDetailMinimalToggle(nextCard);
+    updateKanbanDetailFieldVisibility(nextCard.column || "hearing_request", nextCard);
+    setKanbanDetailStatus(
+      nextCard.minimalView
+        ? ((nextCard.column || "hearing_request") === "decided" ? "Decision only" : "Minimal view enabled")
+        : "Full view",
+      true
+    );
+  }
+  renderKanbanBoard();
 }
 
 async function toggleKanbanMinimalView() {
