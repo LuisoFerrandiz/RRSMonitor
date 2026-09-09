@@ -4801,6 +4801,33 @@ function kanbanHandleDecidedSortClick(event) {
   }
 }
 
+// Ojo de la cabecera de "Decided": abre/cierra la vista mínima de TODAS sus tarjetas a la vez.
+// Icono y título calcados del ojo por tarjeta (kanbanRenderCardHeader).
+function kanbanDecidedCardKeys() {
+  return kanbanHearingCardsList()
+    .filter((c) => (c.column || "hearing_request") === "decided")
+    .map((c) => c.caseKey);
+}
+
+function kanbanRenderDecidedBulkEyeControl() {
+  const keys = kanbanDecidedCardKeys();
+  const cards = kanbanData.cards || {};
+  const anyOpen = keys.some((k) => cards[k] && !cards[k].minimalView);
+  // anyOpen → el clic cerrará todas (mostramos fa-eye); si no, el clic abrirá todas (fa-eye-slash).
+  return `<button type="button" class="kanban-decided-bulk-eye rrs-btn px-2 py-1 rounded-lg text-xs shrink-0"
+      title="${anyOpen ? "Minimal view for all" : "Show all fields for all"}"
+      aria-pressed="${anyOpen ? "false" : "true"}">
+      <i class="${anyOpen ? "fas fa-eye" : "fas fa-eye-slash"}"></i>
+    </button>`;
+}
+
+function kanbanHandleDecidedBulkEyeClick(event) {
+  const btn = event.target.closest(".kanban-decided-bulk-eye");
+  if (!btn) return;
+  event.stopPropagation();
+  kanbanToggleDecidedColumnMinimalView();
+}
+
 function renderKanbanBoard() {
   const board = document.getElementById("kanbanBoard");
   if (!board) return;
@@ -4823,6 +4850,7 @@ function renderKanbanBoard() {
         <header class="kanban-column-header px-4 py-3 border-b flex items-center justify-between shrink-0" style="border-color: var(--rrs-border); background: var(--rrs-primary-soft);">
           <h3 class="font-bold text-sm uppercase tracking-wide" style="color: var(--rrs-primary);">${kanbanEscapeHtml(col.title)}</h3>
           <div class="flex items-center gap-2 shrink-0">
+            ${col.id === "decided" && !isCollapsed && cards.length > 0 ? kanbanRenderDecidedBulkEyeControl() : ""}
             ${col.id === "decided" && !isCollapsed && cards.length > 1 ? kanbanRenderDecidedSortControl() : ""}
             <span class="kanban-column-count text-xs font-bold rrs-badge px-2 py-0.5 rounded-full">${cards.length}</span>
           </div>
@@ -5144,6 +5172,35 @@ async function toggleKanbanMinimalView() {
   const caseKey = modal?.dataset.caseKey;
   if (!caseKey) return;
   await kanbanToggleCardMinimalView(caseKey);
+}
+
+// Ojo a nivel de columna "Decided": aplica la vista mínima/completa a todas sus tarjetas.
+// A diferencia de kanbanToggleCardMinimalView, NO toca `updatedAt` (es solo cambio de vista,
+// no debe reordenar la columna en el modo "Last modified").
+async function kanbanToggleDecidedColumnMinimalView() {
+  const keys = kanbanDecidedCardKeys();
+  if (!keys.length) return;
+  const cards = kanbanData.cards || {};
+  const anyOpen = keys.some((k) => cards[k] && !cards[k].minimalView);
+  const nextMinimal = anyOpen; // hay alguna abierta → cerrar todas; si no → abrir todas
+  const nextCards = { ...cards };
+  for (const k of keys) {
+    if (!nextCards[k]) continue;
+    nextCards[k] = { ...nextCards[k], minimalView: nextMinimal };
+  }
+  const nextData = { cards: nextCards };
+  kanbanData = nextData;
+
+  try {
+    await kanbanSaveData(nextData);
+  } catch (e) {
+    if (!e.message.includes("401")) {
+      console.error("[Kanban] Error al cambiar la vista de la columna:", e.message);
+      return;
+    }
+    // 401 (sin login): se conserva el cambio local, igual que el ojo por tarjeta.
+  }
+  renderKanbanBoard();
 }
 
 function setKanbanDetailEditMode(editable) {
@@ -6139,6 +6196,7 @@ function initKanbanBoardUi() {
   document.addEventListener("click", kanbanCloseLabelsDropdown);
   document.addEventListener("click", kanbanCloseDecidedSortMenu);
   document.getElementById("kanbanBoard")?.addEventListener("click", kanbanHandleDecidedSortClick);
+  document.getElementById("kanbanBoard")?.addEventListener("click", kanbanHandleDecidedBulkEyeClick);
   document.getElementById("kanbanManageLabelsBtn")?.addEventListener("click", openKanbanLabelsManagerModal);
   document.getElementById("kanbanManageJudgesBtn")?.addEventListener("click", openKanbanJudgesManagerModal);
   document.getElementById("kanbanManageRolesBtn")?.addEventListener("click", openKanbanRolesManagerModal);

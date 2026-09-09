@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-09-09 (cont.) — Kanban: ojo "vista mínima" a nivel de columna DECIDED
+
+- Botón "ojo" en la cabecera de la columna DECIDED (junto al control de orden), idéntico al de
+  cada tarjeta. Un clic alterna `minimalView` de **todas** las tarjetas decididas a la vez.
+- Semántica: si alguna está en vista completa → todas a vista mínima; si todas ya están mínimas
+  → todas a completa. El icono (`fa-eye` / `fa-eye-slash`) y el título reflejan el estado.
+- **No toca `updatedAt`** (a diferencia del ojo por tarjeta) → no reordena la columna en el
+  modo "Last modified".
+- `data/viewer.html`: `kanbanDecidedCardKeys()`, `kanbanRenderDecidedBulkEyeControl()`,
+  `kanbanHandleDecidedBulkEyeClick()` (delegado en `#kanbanBoard`, registrado en
+  `initKanbanBoardUi`), `kanbanToggleDecidedColumnMinimalView()` (calcada de
+  `kanbanToggleCardMinimalView`, sin `updatedAt`, tolera 401 igual). Sin CSS nuevo.
+- Verificado en navegador: ojo solo en DECIDED; alterna las 3 tarjetas; estado mixto → todas
+  mínimas; orden intacto; persiste (server + poll); sin errores de consola. 4 bloques
+  `<script>` parsean.
+
 ## 2026-09-09 (cont.) — cleanup de history.jsonl: umbral bajado a 2 (solo primera)
 
 - A petición del usuario: el histórico real (96 líneas) nunca repetía el mismo snapshot 3 veces
