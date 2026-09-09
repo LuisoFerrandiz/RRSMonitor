@@ -4,6 +4,22 @@
 
 ---
 
+## 2026-09-09 (cont.) — Optimización de carga Fase 2 (`data/viewer.html`)
+
+- **Poll condicional** en `loadFilesAutomatically` (modo servidor): sondeo ligero de `state.json`
+  primero; si `sJson.timestamp === lastStateStamp` y ya hubo una carga completa
+  (`dashboardLoadedOnce`), se salta la descarga+parseo de `history.jsonl`/`changes.jsonl` y el
+  `renderTable()` del log — solo se refresca el kanban (puede cambiar desde otro cliente). El
+  `state.json` sale del `Promise.all` (ya se pidió en el sondeo). Verificado: 3 polls extra con
+  `state.json` sin cambios → 0 fetch de history/changes; al cambiar el stamp → recarga completa.
+- **Debounce** de `searchInput` (`input`) a 180 ms (`filterSource` `change` sin debounce).
+  Verificado: 5 inputs rápidos → 1 render.
+- **Tope de render** en `renderUnifiedLogTable` (log history+cleanup fusionados): `LOG_RENDER_CAP
+  = 500` filas + pie "Showing 500 of N rows — refine your search". Verificado con 700 filas.
+- Sin errores de consola; kanban / botón de orden Decided / branding intactos.
+- **Pendiente Fase 3**: quitar Tailwind Play CDN y Font Awesome (sprite SVG inline). Fase 1
+  deploy (`docker-compose.yml`/`Dockerfile`/`deploy.sh`) sigue pendiente de datos del NAS.
+
 ## 2026-09-09 (cont.) — cleanup de history.jsonl: 2×/día + mover líneas a cleanup-archive
 
 Antes: `cleanup.js` colapsaba rachas de 3+ líneas iguales (ignorando `timestamp`) pero **descartaba**

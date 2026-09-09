@@ -1247,6 +1247,9 @@ let authUser = null;
 let authCanManageUsers = false;
 let dashboardConsecutiveFailures = 0;
 let dashboardLastProbe = 0;
+// Poll condicional: si state.json no cambió, el poll de 30 s no re-descarga ni re-renderiza.
+let dashboardLoadedOnce = false;
+let lastStateStamp = "";
 
 async function dashboardFetch(path) {
     if (!navigator.onLine) return null;
@@ -1496,7 +1499,14 @@ function renderUnifiedLogTable(rows, { emptyMessage = "Empty log", sortTab, fmt 
         }
     );
 
-    tableBody.innerHTML = sorted.map((row) => renderLogTableRow(row, metricCols, fmt)).join("");
+    // Tope de render: el log (history + cleanup-archive fusionados) puede crecer mucho.
+    const LOG_RENDER_CAP = 500;
+    const shown = sorted.slice(0, LOG_RENDER_CAP);
+    let html = shown.map((row) => renderLogTableRow(row, metricCols, fmt)).join("");
+    if (sorted.length > LOG_RENDER_CAP) {
+        html += `<tr><td colspan="${cols.length}" class="px-4 py-3 text-xs text-center" style="color: var(--rrs-muted); font-style: italic;">Showing ${LOG_RENDER_CAP} of ${sorted.length} rows — refine your search</td></tr>`;
+    }
+    tableBody.innerHTML = html;
 }
 
 function getMonitorCfg() {
@@ -3023,11 +3033,26 @@ async function loadFilesAutomatically() {
             return;
         }
 
-        const [hText, cText, archiveText, sJson, cfgJson] = await Promise.all([
+        // Sondeo ligero: state.json es pequeño y su `timestamp` cambia en cada ciclo del monitor.
+        // Si no cambió desde el último poll, no re-descargamos history/changes (grandes) ni
+        // re-renderizamos toda la tabla.
+        const sJsonRes = await dashboardFetch(`state.json`);
+        const sJson = sJsonRes?.ok ? await sJsonRes.json() : {};
+        const stateStamp = String(sJson.timestamp || "");
+        if (dashboardLoadedOnce && stateStamp && stateStamp === lastStateStamp) {
+            // state.json sin cambios: evitamos re-descargar/parsear history+changes y re-renderizar
+            // el log. El kanban sí puede haber cambiado desde otro cliente, así que se refresca.
+            await loadKanbanData();
+            updateKanbanStat();
+            if (currentTab === "kanban") renderKanbanBoard();
+            scheduleDashboardReload();
+            return;
+        }
+
+        const [hText, cText, archiveText, cfgJson] = await Promise.all([
             dashboardFetch(`history.jsonl`).then((r) => (r?.ok ? r.text() : "")),
             dashboardFetch(`changes.jsonl`).then((r) => (r?.ok ? r.text() : "")),
             dashboardFetch(`cleanup-archive.jsonl`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`state.json`).then((r) => (r?.ok ? r.json() : {})),
             loadMonitorConfig(mode),
         ]);
 
@@ -3051,6 +3076,8 @@ async function loadFilesAutomatically() {
         updateStats();
         updateCardStyles();
         renderTable();
+        dashboardLoadedOnce = true;
+        lastStateStamp = stateStamp;
         scheduleDashboardReload();
     } catch (e) {
         console.error("[RRS] Error:", e);
@@ -4004,7 +4031,11 @@ if (configModalBackdrop) configModalBackdrop.addEventListener("click", closeConf
 if (configCancelBtn) configCancelBtn.addEventListener("click", closeConfigModal);
 if (configSaveBtn) configSaveBtn.addEventListener("click", saveConfig);
 
-if (searchInput) searchInput.addEventListener('input', () => renderTable());
+let searchDebounceTimer = null;
+if (searchInput) searchInput.addEventListener('input', () => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(renderTable, 180);
+});
 if (filterSource) filterSource.addEventListener('change', () => renderTable());
 </script>
     <script>const KANBAN_COLUMN_META = [
