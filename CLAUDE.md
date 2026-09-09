@@ -1,0 +1,119 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Qué es
+
+Monitor de `racingrulesofsailing.org` (RRS) para **un evento de vela concreto**. Descarga las páginas
+del evento, las compara con el último estado en disco y, ante cambios, escribe histórico y opcionalmente
+notifica por **Telegram** y sincroniza tarjetas en **Trello**. Node.js 18+ (usa `fetch`, `FormData`,
+`Blob` nativos). Dependencias mínimas: `cheerio`, `dotenv`.
+
+**Idiomas:**
+- **Español** para todo lo interno: comentarios de código, mensajes de commit, `BITACORA.md`, docs
+  del repo, logs de consola/servidor y la conversación de desarrollo.
+- **Inglés** para toda la capa externa y el aplicativo: la UI del dashboard (`data/viewer.html` y demás
+  `data/*.js` — textos, labels, botones, tabs, mensajes al usuario, `alert`/`toast`), los mensajes de
+  notificación de Telegram, y cualquier cadena visible para el usuario final o de cara al exterior.
+
+## Reglas del proyecto (obligatorias)
+
+1. **Nunca modifiques `.env`** (crear, editar, sobrescribir, mover o borrar) sin permiso **explícito**
+   del usuario para ese cambio concreto. Puedes leerlo y proponer cambios en texto, pero la edición la
+   autoriza o la hace el usuario. Esto está reforzado con un `deny` en `.claude/settings.json`.
+   `.env.example` sí se puede editar con normalidad.
+2. **Solo HTML, CSS y JavaScript.** El frontend (`data/`) es HTML + CSS + JS de navegador **vanilla**:
+   nada de React/Vue/Svelte, TypeScript, JSX, Tailwind ni build steps. El backend es **JavaScript de
+   Node.js** con módulos nativos (`http`, `fs`, `crypto`, …); solo las dependencias ya presentes
+   (`cheerio`, `dotenv`). No introduzcas otros lenguajes, transpiladores ni bundlers. Los scripts de
+   automatización/despliegue en shell son la única excepción.
+
+## Comandos
+
+```bash
+npm run once      # node index.js --once  → un solo ciclo de scraping y sale
+npm start         # node index.js         → ciclo + bucle setInterval(POLL_INTERVAL_MS)
+npm run schedule  # node scheduler.js     → UNA pasada según schedule.json y sale (pensado para cron)
+node --check index.js   # verificación de sintaxis (no hay linter ni test runner configurado)
+node src/api.js         # arranca la API HTTP en :3000 (PORT configurable)
+```
+
+No hay framework de test ni lint. La verificación habitual tras tocar `index.js` es
+`node --check index.js` + un `npm run once` real contra el evento configurado, revisando los logs
+`[START]` / `[CHANGES]` / `[NO_CHANGES]` / `[ERROR]`.
+
+`scheduler.js` **no** es un daemon: ejecuta una pasada y termina. En producción se invoca desde cron
+(DSM). Usa un lock (`data/monitor.lock`, stale a 30 min) y `data/scheduler-last-run.json` para respetar
+la frecuencia de la regla activa. También dispara la limpieza diaria (`cleanup.js`) una vez por día.
+
+## Arquitectura (3 capas)
+
+1. **Scraper / monitor** — `index.js` (~3.400 líneas, núcleo), `scheduler.js`, `cleanup.js`.
+   `runMonitorCycle()` (index.js:3322) es el ciclo completo: descarga HTML con `fetch` (User-Agent de
+   Chrome real para evitar bloqueo), parsea con `cheerio`, compara contra `data/state.json`, escribe
+   `data/history.jsonl` (con buffer, flush cada ~30 min) y `data/changes.jsonl` (solo ciclos con
+   cambios), luego Trello y Telegram.
+2. **API backend** — `src/api.js`, servidor HTTP nativo Node en `:3000`. Auth por Bearer token en
+   memoria (`sessions` Map, TTL 12 h). `router` es un objeto plano `'MÉTODO /api/ruta' → handler`
+   (ver final del archivo); no hay framework de routing. Gestiona lo que necesita escritura segura:
+   login/logout, config, kanban (+ labels/judges/roles), schedule, users, archive/reset/restore,
+   force-flush-history, force-cleanup.
+3. **Dashboard web** — `data/viewer.html` (~270 KB, SPA monolítica) + `data/viewer-ui-logic.js` +
+   `data/kanban-board.js` + `data/schedule-editor.js` + `data/styles.css`. Lee los `.json/.jsonl`
+   **directamente** (servidos por nginx) y solo llama a `/api/*` para escritura/auth.
+
+**Despliegue** — `docker/nginx.conf`: nginx sirve estáticos de `data/` y hace proxy `/api/` →
+`http://rrs-scheduler:3000`. **No hay Dockerfile ni docker-compose en el repo todavía** aunque
+`.env` y nginx asumen contenedores (`rrs-scheduler:3000`, rutas `/app/...`).
+
+## Configuración: `.env` es la única fuente de verdad
+
+Todo sale de `.env` en cada arranque; **las URLs no están en el código**. Para cambiar de evento basta
+`RRS_EVENT_ID=XXXXX` (el `{id_evento}` se sustituye en Node — nunca uses `[corchetes]`, bash los expande
+como glob) y reiniciar. `.env.example` es la plantilla.
+
+- **Flags de sección** (`DOCUMENTS`, `DECISIONS`, `QUESTIONS`, `SCORINGENQUIRIES`, `CREWCHANGES`,
+  `ONWATERPENALTIES`, `REPORTPENALTIES`, `RETIREMENTS`, `SAILTIRESULTS`, `EQUIPMENTSUBSTITUTIONS`,
+  `TRACKING`): controlan qué se scrapea. El puente `.env` ↔ dashboard es
+  `src/api.js` → `CONFIG_FLAGS` (envKey ↔ cfgKey) + `normalizeConfig` (resuelve URLs desde templates)
+  + `data/viewer.html` → `CONFIG_TOGGLE_DEFS`. Al añadir una sección hay que tocar los **tres** sitios.
+- **`TELEGRAM_ENABLED` / `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`**, **`TRELLO_ENABLED` / `TRELLO_KEY`
+  / `TRELLO_TOKEN` / `TRELLO_*_LIST_ID`**. `TELEGRAM_ENABLED` debe ser exactamente `true` (minúsculas).
+- `data/monitor-config.json` es un **derivado** que `src/api.js` reconstruye desde `.env` +
+  el scrap de título/logo/URL de resultados del evento. No editarlo a mano como fuente.
+- `data/schedule.json` (planes de frecuencia de polling por fecha/franja horaria) lo consume
+  `scheduler.js` y lo edita el dashboard vía `/api/schedule`.
+- Timestamps (`state.json`, `history.jsonl`, `changes.jsonl`, consola, Telegram) en `Europe/Madrid`;
+  override con `REPORT_TIME_ZONE` (cualquier zona IANA).
+
+## Comportamiento a recordar
+
+- **Primer arranque** (sin `state.json` legible): se fija la línea base y **no** se manda Telegram ni,
+  en la práctica, se generan cambios ruidosos. Los avisos empiezan en el siguiente ciclo con cambios.
+  Borrar `state.json` = tratar el evento como nuevo (riesgo de tarjetas Trello duplicadas).
+- **Cambios en las secciones tabulares** (retirements, penalty reports, on-water penalties, crew subs,
+  equipment subs) se registran en `changes.jsonl` pero **NO disparan Telegram** (decisión de diseño
+  de la Fase 1). Solo audiencias / time limits / documentos / Q&A notifican.
+- Scraping robusto vía `extractRrsGenericTable` + registro declarativo `RRS_TABULAR_SECTIONS`: dirigido
+  por cabeceras, tolera reordenación de columnas, columnas `d-none` y `404` (se trata como sección vacía,
+  log informativo, no `console.error`). Una sección deshabilitada **conserva** las filas previas del estado.
+
+## `data/` está trackeado parcialmente — cuidado con los commits
+
+`.gitignore` excluye `data/*.jsonl`, `data/kanban.json`, `data/users.json`, `data/monitor-config.json`,
+`data/backup_*/` y varios más, pero **`data/viewer.html` y los `.js/.css` del dashboard sí se versionan**
+desde la misma carpeta que los datos mutables. Al commitear revisa que no se cuelan artefactos de
+runtime (`state.json`, `history*.jsonl`, `*.tmp.jsonl`, logs).
+
+## Seguridad (estado actual, conocido)
+
+- `.env` versionado histórico contiene `TRELLO_KEY`/`TRELLO_TOKEN`/`TELEGRAM_*` reales; `.env` está en
+  `.gitignore` pero el historial puede tenerlos — rotar antes de publicar el repo.
+- `data/users.json` guarda contraseñas de admin en claro; `src/api.js` guarda las de usuarios nuevos
+  en claro a propósito (`verifyPassword` acepta claro o sha256). No es un bug a "arreglar" sin hablarlo.
+
+## Contexto de trabajo
+
+`BITACORA.md` lleva el registro por sesión (más reciente arriba) — **añade una entrada al terminar
+trabajo relevante**. Fase 1 (scraping) y Fase 2 (menú Configuration) están completas; pendientes:
+Dockerfile/compose, Telegram/Trello para secciones tabulares, resolver `.sync-conflict-*.env` de Syncthing.

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node --check data/viewer.html)"
+    ],
+    "deny": [
+      "Edit(./.env)",
+      "Write(./.env)",
+      "Edit(.env)",
+      "Write(.env)"
+    ]
+  }
+}
