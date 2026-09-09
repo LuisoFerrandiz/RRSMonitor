@@ -4,6 +4,28 @@
 
 ---
 
+## 2026-09-09 (cont.) — Log: filtro de fuente revisado + rename de etiqueta
+
+- **Revisión del filtro de la pestaña Log** (`#filterSource` en `data/viewer.html`): confirmado
+  que funciona. `getHistoryLogSource()` → `renderHistoryTable()`:
+  - `all` → `history.jsonl` + `cleanup-archive.jsonl` fusionados (sortTab `allHistory`).
+  - `history` → solo `history.jsonl`.
+  - `cleanup` → solo `cleanup-archive.jsonl` (sortTab `cleanupHistory`).
+- **Integridad de datos verificada**: `history.jsonl` (52 líneas) y `cleanup-archive.jsonl`
+  (44) 100% JSON válido, timestamps monótonos, mismo esquema. Las 44 líneas del archive
+  tienen equivalente exacto (ignorando `timestamp`) en history → invariante de `cleanup.js` OK.
+- **Repro limpio en navegador** (servidor estático sirviendo `data/`): los 3 modos renderizan
+  (all=96, history=52, cleanup=44). La cadena parse→`mapCleanupArchiveToLogRow`→
+  `renderUnifiedLogTable` es correcta. **No se pudo reproducir** el "no muestra nada".
+- **Diagnóstico del "cleanup vacío"**: `dashboardFetch('cleanup-archive.jsonl')` cuando no da
+  200 hace `r?.ok ? r.text() : ""` → `parseLines("")` → `[]` → "Empty cleanup archive" **sin
+  error visible**. Causa probable: el `.jsonl` servido da 404 (no desplegado en esa máquina /
+  Syncthing / nginx de ahí) o `viewer.html` cacheado anterior a `b256d6a`. Pendiente: el
+  usuario debe abrir `…/cleanup-archive.jsonl` directo en el navegador que falla y reportar.
+- **Cambio aplicado**: `data/viewer.html:615` etiqueta del `<option value="cleanup">` de
+  "CleanUp History" → "Cleanup archive". `value` y nombre de fichero intactos. `All` y
+  `History` sin cambios.
+
 ## 2026-09-09 (cont.) — Kanban: ojo "vista mínima" a nivel de columna DECIDED
 
 - Botón "ojo" en la cabecera de la columna DECIDED (junto al control de orden), idéntico al de
