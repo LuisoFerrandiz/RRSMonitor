@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node --check data/viewer.html)"
+      "Bash(node --check index.js)",
+      "Bash(node --check src/api.js)",
+      "Bash(node --check scheduler.js)",
+      "Bash(node --check cleanup.js)"
     ],
     "deny": [
       "Edit(./.env)",
