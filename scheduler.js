@@ -284,20 +284,20 @@ function runMonitorOnce() {
 async function main() {
   const { weekday, dateKey, minutesOfDay } = getZonedParts();
 
-  // Limpieza diaria una vez al día
+  // Limpieza dos veces al día: primera pasada tras las 00:00 y tras las 12:00 (REPORT_TIME_ZONE).
   const STATE_FILE = path.join(DATA_DIR, "state.json");
   try {
     const state = await readJson(STATE_FILE, {});
-    const today = new Date().toISOString().split('T')[0];
-    if (state.lastCleanupDate !== today) {
+    const slot = `${dateKey}-${minutesOfDay < 720 ? "AM" : "PM"}`; // 720 = 12:00
+    if (state.lastCleanupSlot !== slot) {
       const historyPath = path.join(DATA_DIR, "history.jsonl");
       const logPath = path.join(DATA_DIR, "scheduler.log");
       await performCleanup(historyPath, logPath);
-      state.lastCleanupDate = today;
+      state.lastCleanupSlot = slot;
       await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
     }
   } catch (error) {
-    console.error("[SCHEDULER] Error durante la limpieza diaria:", error.message);
+    console.error("[SCHEDULER] Error durante la limpieza periódica:", error.message);
   }
 
   const plans = parseScheduleConfig(await readJson(SCHEDULE_FILE, null));

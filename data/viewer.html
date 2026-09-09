@@ -3317,7 +3317,7 @@ function mapCleanupArchiveToLogRow(entry) {
     const row = mapCleanupArchiveRow(entry);
     return {
         dateTime: row.archivedAt,
-        origin: `CleanUp · ${row.source}`,
+        origin: row.source ? `CleanUp · ${row.source}` : "CleanUp",
         rowCount: row.rowCount,
         decisionRowCount: row.decisionRowCount,
         timeLimitRowCount: row.timeLimitRowCount,
@@ -3331,11 +3331,15 @@ function mapCleanupArchiveToLogRow(entry) {
 }
 
 function mapCleanupArchiveRow(entry) {
-    if (entry.payload) {
-        const p = entry.payload;
+    // Formato nuevo (cleanup.js): la línea es un snapshot de history puro (con `timestamp`,
+    // sin envoltorio). Formato legacy: envoltorio { archivedAt, source, payload }.
+    const p = entry && entry.payload ? entry.payload : entry;
+    const archivedAt = (entry && entry.archivedAt) || (p && p.timestamp) || "";
+    const source = (entry && entry.source) || "";
+    if (p && (p.timestamp || p.rowCount != null)) {
         return {
-            archivedAt: entry.archivedAt,
-            source: entry.source || "",
+            archivedAt,
+            source,
             rowCount: p.rowCount || 0,
             decisionRowCount: countLogDecisions(p),
             timeLimitRowCount: p.timeLimitRowCount || 0,
@@ -3348,8 +3352,8 @@ function mapCleanupArchiveRow(entry) {
         };
     }
     return {
-        archivedAt: entry.archivedAt,
-        source: entry.source || "",
+        archivedAt,
+        source,
         rowCount: null,
         decisionRowCount: null,
         timeLimitRowCount: null,

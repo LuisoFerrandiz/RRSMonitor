@@ -44,7 +44,14 @@ No hay framework de test ni lint. La verificación habitual tras tocar `index.js
 
 `scheduler.js` **no** es un daemon: ejecuta una pasada y termina. En producción se invoca desde cron
 (DSM). Usa un lock (`data/monitor.lock`, stale a 30 min) y `data/scheduler-last-run.json` para respetar
-la frecuencia de la regla activa. También dispara la limpieza diaria (`cleanup.js`) una vez por día.
+la frecuencia de la regla activa. También dispara `cleanup.js` **dos veces al día** (primera pasada
+tras las 00:00 y tras las 12:00, hora `REPORT_TIME_ZONE`; gate `state.lastCleanupSlot`).
+
+`node cleanup.js` (entrypoint CLI) ejecuta el cleanup incondicionalmente: colapsa rachas de 3+
+líneas iguales en `data/history.jsonl` (ignorando `timestamp`) dejando primera+última y **mueve** las
+del centro a `data/cleanup-archive.jsonl` (mismo formato que `history.jsonl`), tras volcar antes
+`history.tmp.jsonl`. Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup` y una tarea DSM
+opcional a las 00:00/12:00.
 
 ## Arquitectura (3 capas)
 

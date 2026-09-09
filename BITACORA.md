@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-09-09 (cont.) — cleanup de history.jsonl: 2×/día + mover líneas a cleanup-archive
+
+Antes: `cleanup.js` colapsaba rachas de 3+ líneas iguales (ignorando `timestamp`) pero **descartaba**
+las del centro; corría 1×/día (gate `state.lastCleanupDate` UTC); `POST /api/force-cleanup` era
+no-op (`node cleanup.js` sin entrypoint CLI).
+
+- **`cleanup.js`**:
+  - `reduceLines` acepta 3er arg `onRemove(line)` → se llama con cada línea del centro.
+  - `performCleanup`: (1) `flushHistoryTmp()` vuelca `history.tmp.jsonl` a `history.jsonl` primero;
+    (2) las líneas del centro se **añaden verbatim** (con su `timestamp` original, en orden) a
+    `data/cleanup-archive.jsonl` — mismo formato que `history.jsonl`, sin envoltorio; (3) log
+    `N -> M líneas (K movidas)`. Umbral sin cambios (`count >= 3`). `scheduler.log` igual.
+  - Entrypoint CLI `if (require.main === module)` + `dotenv` → `node cleanup.js` funciona →
+    `POST /api/force-cleanup` deja de ser no-op (sin tocar `api.js`).
+- **`scheduler.js`**: gate `state.lastCleanupSlot` (`${dateKey}-${AM|PM}` con `minutesOfDay < 720`,
+  hora `REPORT_TIME_ZONE`) → cleanup en la primera pasada tras las 00:00 y tras las 12:00.
+  `lastCleanupDate` queda obsoleto.
+- **`data/viewer.html`**: `mapCleanupArchiveRow` acepta líneas de snapshot puras (además del
+  envoltorio legacy `{archivedAt,source,payload}`); `mapCleanupArchiveToLogRow` → origin "CleanUp".
+- Verificado: test aislado de `performCleanup` (racha de 5 → mueve 3; racha de 3 → mueve 1;
+  primera/última quedan; tmp volcado; idempotente ✓). Dashboard con `cleanup-archive.jsonl` de
+  líneas puras → vistas "CleanUp History" y "All" renderizan contadores reales, sin errores.
+  `node --check` de los 4 archivos JS + `vm.Script` de los 4 bloques de `viewer.html` ✓.
+- Nota: la vista de log (botón `#stagesLogBtn`) es `auth-required`.
+
 ## 2026-09-09 — Kanban: botón de orden en la columna "Decided" + plan de optimización de carga
 
 ### Kanban "Decided" — control de orden (implementado)
