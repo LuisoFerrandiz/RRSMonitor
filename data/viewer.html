@@ -344,6 +344,33 @@
         .rrs-schedule-inactive .rrs-schedule-time { opacity: 0.85; }
         .kanban-dropzone--over { background: var(--rrs-accent-soft); outline: 2px dashed var(--rrs-primary-vivid); outline-offset: -4px; }
         .kanban-card:hover { border-color: var(--rrs-primary-vivid); }
+        .kanban-decided-sort { position: relative; }
+        .kanban-decided-sort-panel {
+            position: absolute;
+            right: 0;
+            margin-top: 0.35rem;
+            min-width: 11rem;
+            padding: 0.25rem;
+            border: 1px solid var(--rrs-border);
+            border-radius: 0.5rem;
+            background: var(--rrs-surface);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+            z-index: 30;
+        }
+        .kanban-decided-sort-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            width: 100%;
+            padding: 0.4rem 0.6rem;
+            border-radius: 0.375rem;
+            font-size: 0.8rem;
+            text-align: left;
+            color: var(--rrs-text);
+            cursor: pointer;
+        }
+        .kanban-decided-sort-option:hover { background: var(--rrs-primary-soft); }
+        .kanban-decided-sort-option.is-active { background: var(--rrs-primary-soft); font-weight: 700; }
         #kanbanBoard {
             display: grid;
             grid-template-columns: 1fr;
@@ -1097,6 +1124,27 @@ const tableSortByTab = {
     cleanupHistory: { key: 'dateTime', dir: 'desc' },
     allHistory: { key: 'dateTime', dir: 'desc' },
 };
+
+// Orden de la columna Kanban "Decided" elegido por el usuario. Se recuerda en localStorage
+// (primer uso de localStorage en este archivo; el token de sesión usa sessionStorage).
+// Degradado seguro: si localStorage está bloqueado, se usa siempre el valor por defecto.
+const KANBAN_DECIDED_SORTS = ['modified', 'case_desc', 'case_asc'];
+const KANBAN_DECIDED_SORT_KEY = 'rrs.kanban.decidedSort';
+
+function kanbanLoadDecidedSort() {
+    try {
+        const v = localStorage.getItem(KANBAN_DECIDED_SORT_KEY);
+        return KANBAN_DECIDED_SORTS.includes(v) ? v : 'modified';
+    } catch (e) {
+        return 'modified';
+    }
+}
+
+function kanbanSaveDecidedSort(value) {
+    try { localStorage.setItem(KANBAN_DECIDED_SORT_KEY, value); } catch (e) {}
+}
+
+let kanbanDecidedSort = kanbanLoadDecidedSort();
 
 const CHANGE_TABLE_COLUMNS = [
     { label: 'Date & Time', width: 'col-sm', sortKey: 'ts' },
@@ -4280,6 +4328,17 @@ function kanbanSortDecidedColumn(a, b) {
   return kanbanCaseNumberSortValue(b) - kanbanCaseNumberSortValue(a);
 }
 
+// Comparador de la columna "Decided" según la preferencia del usuario (kanbanDecidedSort).
+function kanbanDecidedComparator() {
+  if (kanbanDecidedSort === "case_asc") {
+    return (a, b) => kanbanCaseNumberSortValue(a) - kanbanCaseNumberSortValue(b);
+  }
+  if (kanbanDecidedSort === "case_desc") {
+    return (a, b) => kanbanCaseNumberSortValue(b) - kanbanCaseNumberSortValue(a);
+  }
+  return kanbanSortDecidedColumn;
+}
+
 function kanbanCardsByColumn() {
   const grouped = Object.fromEntries(KANBAN_COLUMN_META.map((c) => [c.id, []]));
   for (const card of kanbanHearingCardsList()) {
@@ -4288,7 +4347,7 @@ function kanbanCardsByColumn() {
   }
   for (const col of Object.keys(grouped)) {
     if (col === "decided") {
-      grouped[col].sort(kanbanSortDecidedColumn);
+      grouped[col].sort(kanbanDecidedComparator());
       continue;
     }
     grouped[col].sort((a, b) => {
@@ -4639,6 +4698,68 @@ function applyKanbanBoardLayout(board, grouped) {
     .join(" ");
 }
 
+// Control de orden para la cabecera de la columna "Decided": botón + menú con 3 opciones.
+// Patrón calcado de kanbanRenderLabelsDropdown. Los textos van en inglés (UI).
+const KANBAN_DECIDED_SORT_LABELS = {
+  modified: "Last modified",
+  case_desc: "Case no. ↓",
+  case_asc: "Case no. ↑",
+};
+
+function kanbanRenderDecidedSortControl() {
+  const current = KANBAN_DECIDED_SORTS.includes(kanbanDecidedSort) ? kanbanDecidedSort : "modified";
+  const items = KANBAN_DECIDED_SORTS.map((key) => {
+    const active = key === current;
+    return `<button type="button" class="kanban-decided-sort-option${active ? " is-active" : ""}" data-sort="${key}" role="menuitemradio" aria-checked="${active}">
+      <i class="fas fa-check text-[10px]"${active ? "" : ' style="visibility:hidden"'}></i>
+      <span>${kanbanEscapeHtml(KANBAN_DECIDED_SORT_LABELS[key])}</span>
+    </button>`;
+  }).join("");
+
+  return `<div class="kanban-decided-sort">
+    <button type="button" class="kanban-decided-sort-trigger rrs-btn px-2 py-1 rounded-lg text-xs" aria-haspopup="true" aria-expanded="false" title="Sort cards">
+      <i class="fas fa-arrow-down-wide-short"></i>
+    </button>
+    <div class="kanban-decided-sort-panel hidden" role="menu">${items}</div>
+  </div>`;
+}
+
+function kanbanCloseDecidedSortMenu() {
+  document.querySelectorAll("#kanbanBoard .kanban-decided-sort-panel").forEach((el) => {
+    el.classList.add("hidden");
+  });
+  document.querySelectorAll("#kanbanBoard .kanban-decided-sort-trigger").forEach((el) => {
+    el.setAttribute("aria-expanded", "false");
+  });
+}
+
+// Delegación de clicks del control de orden (el board se reconstruye en cada render).
+function kanbanHandleDecidedSortClick(event) {
+  const option = event.target.closest(".kanban-decided-sort-option");
+  if (option) {
+    event.stopPropagation();
+    const value = option.dataset.sort;
+    kanbanCloseDecidedSortMenu();
+    if (!KANBAN_DECIDED_SORTS.includes(value) || value === kanbanDecidedSort) return;
+    kanbanDecidedSort = value;
+    kanbanSaveDecidedSort(value);
+    renderKanbanBoard();
+    return;
+  }
+
+  const trigger = event.target.closest(".kanban-decided-sort-trigger");
+  if (trigger) {
+    event.stopPropagation();
+    const panel = trigger.parentElement.querySelector(".kanban-decided-sort-panel");
+    const willOpen = panel && panel.classList.contains("hidden");
+    kanbanCloseDecidedSortMenu();
+    if (willOpen) {
+      panel.classList.remove("hidden");
+      trigger.setAttribute("aria-expanded", "true");
+    }
+  }
+}
+
 function renderKanbanBoard() {
   const board = document.getElementById("kanbanBoard");
   if (!board) return;
@@ -4660,7 +4781,10 @@ function renderKanbanBoard() {
         data-column-id="${col.id}">
         <header class="kanban-column-header px-4 py-3 border-b flex items-center justify-between shrink-0" style="border-color: var(--rrs-border); background: var(--rrs-primary-soft);">
           <h3 class="font-bold text-sm uppercase tracking-wide" style="color: var(--rrs-primary);">${kanbanEscapeHtml(col.title)}</h3>
-          <span class="kanban-column-count text-xs font-bold rrs-badge px-2 py-0.5 rounded-full">${cards.length}</span>
+          <div class="flex items-center gap-2 shrink-0">
+            ${col.id === "decided" && !isCollapsed && cards.length > 1 ? kanbanRenderDecidedSortControl() : ""}
+            <span class="kanban-column-count text-xs font-bold rrs-badge px-2 py-0.5 rounded-full">${cards.length}</span>
+          </div>
         </header>
         <div class="kanban-dropzone flex-1 overflow-y-auto custom-scrollbar p-3 space-y-3 min-h-0" data-column-id="${col.id}">
           ${cards.length ? cards.map(kanbanRenderCardFace).join("") : emptyMarkup}
@@ -5973,6 +6097,8 @@ function initKanbanBoardUi() {
     updateKanbanDetailFieldVisibility(e.target.value, card);
   });
   document.addEventListener("click", kanbanCloseLabelsDropdown);
+  document.addEventListener("click", kanbanCloseDecidedSortMenu);
+  document.getElementById("kanbanBoard")?.addEventListener("click", kanbanHandleDecidedSortClick);
   document.getElementById("kanbanManageLabelsBtn")?.addEventListener("click", openKanbanLabelsManagerModal);
   document.getElementById("kanbanManageJudgesBtn")?.addEventListener("click", openKanbanJudgesManagerModal);
   document.getElementById("kanbanManageRolesBtn")?.addEventListener("click", openKanbanRolesManagerModal);

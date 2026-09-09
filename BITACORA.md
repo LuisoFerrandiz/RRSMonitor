@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-09-09 — Kanban: botón de orden en la columna "Decided" + plan de optimización de carga
+
+### Kanban "Decided" — control de orden (implementado)
+`data/viewer.html`. La columna "Decided" ya ordenaba por `updatedAt` desc (`kanbanSortDecidedColumn`)
+sin control de UI. Añadido un botón en su cabecera con menú de 3 opciones:
+- **Last modified** (default, comportamiento previo), **Case no. ↓**, **Case no. ↑**.
+- Estado en variable de módulo `kanbanDecidedSort`, persistido en `localStorage`
+  (`rrs.kanban.decidedSort`) — **primer uso de localStorage en el archivo**; degradado seguro
+  (try/catch → default) si está bloqueado.
+- `kanbanDecidedComparator()` elige el comparador; se aplica en `kanbanCardsByColumn()`.
+- Render: `kanbanRenderDecidedSortControl()`, insertado en la cabecera solo si
+  `col.id === "decided" && !isCollapsed && cards.length > 1`.
+- Interacción por delegación en `#kanbanBoard` (`kanbanHandleDecidedSortClick`), registrada una vez
+  en `initKanbanBoardUi`; cierre global `kanbanCloseDecidedSortMenu` como el de labels.
+- CSS `.kanban-decided-sort*` en el `<style>` inline.
+- Verificado en navegador (servidor local sobre `data/`): las 3 opciones reordenan solo la columna
+  Decided; persiste tras recarga; sobrevive al poll de 30 s; sin errores de consola. Los 4 bloques
+  `<script>` pasan `new vm.Script`.
+
+### Optimización de carga (solo plan, sin implementar)
+Plan en `~/.claude/plans/estudia-como-poder-optimizar-fluffy-feather.md`. Diagnóstico: cold load
+≈1.08 MB sin comprimir + Tailwind Play CDN y Font Awesome render-blocking; `docker/nginx.conf` sin
+gzip; poll de 30 s con `?t=Date.now()` que rompe toda revalidación; renders sin tope. Fases:
+1) nginx gzip + cache dividida + deploy versionado + quitar `?t=`; 2) poll condicional + debounce
+búsqueda + tope de filas; 3) quitar CDN (Font Awesome → sprite SVG inline, Tailwind → CSS plano en
+el `<style>`); 4) opcionales. **`history.jsonl` queda fuera por decisión del usuario** (se hará después).
+
+---
+
 ## 2026-09-03 T~— Dashboard polish: renderers para retirements y penaltyReports
 
 ### Resumen
