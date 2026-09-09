@@ -2,14 +2,19 @@ const fs = require('fs/promises');
 const path = require('path');
 
 /**
- * Reduce líneas repetidas manteniendo solo la primera y la última de un bloque.
+ * Reduce rachas de líneas consecutivas iguales.
  * @param {string[]} lines - Array de líneas a procesar
  * @param {Function} getComparisonKey - Función para extraer la parte comparable de la línea
- * @param {Function} [onRemove] - Se llama con cada línea del centro que se descarta de un bloque
+ * @param {Function} [onRemove] - Se llama con cada línea descartada de una racha, en orden
+ * @param {{minRun?: number, keepLast?: boolean}} [opts] - minRun: tamaño mínimo de racha
+ *   para colapsar (por defecto 3); keepLast: si además de la primera se conserva la última
+ *   de la racha (por defecto true).
  * @returns {string[]} Líneas procesadas
  */
-function reduceLines(lines, getComparisonKey, onRemove) {
-  if (lines.length < 3) return lines;
+function reduceLines(lines, getComparisonKey, onRemove, opts) {
+  const minRun = (opts && opts.minRun) || 3;
+  const keepLast = !opts || opts.keepLast !== false;
+  if (lines.length < minRun) return lines;
   const result = [];
   let i = 0;
   while (i < lines.length) {
@@ -19,12 +24,17 @@ function reduceLines(lines, getComparisonKey, onRemove) {
       j++;
     }
     const count = j - i;
-    if (count >= 3) {
-      result.push(lines[i]);     // Mantenemos la primera
-      result.push(lines[j - 1]); // Mantenemos la última
-      // Las del centro se quitan; si hay callback, se le entregan en orden.
+    if (count >= minRun) {
+      result.push(lines[i]); // Mantenemos la primera
+      const lastIdx = keepLast ? j - 1 : i;
+      if (keepLast && j - 1 !== i) {
+        result.push(lines[j - 1]); // Mantenemos la última
+      }
+      // El resto se quita; si hay callback, se le entregan en orden.
       if (onRemove) {
-        for (let k = i + 1; k < j - 1; k++) onRemove(lines[k]);
+        for (let k = i + 1; k < j; k++) {
+          if (k !== lastIdx) onRemove(lines[k]);
+        }
       }
     } else {
       for (let k = i; k < j; k++) result.push(lines[k]);
@@ -57,8 +67,8 @@ async function performCleanup(historyPath, logPath) {
   console.log('[CLEANUP] Iniciando limpieza...');
 
   // --- 1. Limpiar history.jsonl ---
-  // Regla: si la misma línea (ignorando `timestamp`) se repite 3+ veces seguidas,
-  // dejamos solo la primera y la última y movemos las del centro a cleanup-archive.jsonl
+  // Regla: si la misma línea (ignorando `timestamp`) se repite 2+ veces seguidas,
+  // dejamos solo la primera y movemos el resto de la racha a cleanup-archive.jsonl
   // (mismo formato que history.jsonl: la línea de snapshot verbatim, con su timestamp).
   try {
     await flushHistoryTmp(historyPath);
@@ -77,7 +87,8 @@ async function performCleanup(historyPath, logPath) {
           return JSON.stringify(obj);
         } catch (e) { return line; }
       },
-      (line) => movedLines.push(line)
+      (line) => movedLines.push(line),
+      { minRun: 2, keepLast: false }
     );
 
     if (movedLines.length) {

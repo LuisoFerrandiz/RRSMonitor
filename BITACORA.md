@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-09-09 (cont.) — cleanup de history.jsonl: umbral bajado a 2 (solo primera)
+
+- A petición del usuario: el histórico real (96 líneas) nunca repetía el mismo snapshot 3 veces
+  seguidas (racha máxima = 2), así que la regla de 3+ no movía nada.
+- **`cleanup.js`**: `reduceLines` acepta 4º arg `opts = {minRun, keepLast}`. La sección de
+  `history.jsonl` ahora usa `{minRun: 2, keepLast: false}` → colapsa rachas de **2+** líneas
+  iguales dejando **solo la primera** y mueve el resto (verbatim, con su `timestamp`) a
+  `cleanup-archive.jsonl`. La compactación de `scheduler.log` sigue con los defaults (3+,
+  primera+última) — sin cambio.
+- Ejecutado sobre datos reales: `data/history.jsonl` 96 → 52 líneas (44 movidas a
+  `cleanup-archive.jsonl`). Integridad verificada: las 96 líneas originales están todas en
+  history+archive. Test aislado: racha de 4 → mueve 3, par → mueve 1, idempotente.
+- Instalado `jq` (`winget install jqlang.jq`) para los hooks del plugin `claude-code-warp`
+  (causaban el spam `jq: command not found`). Requiere reiniciar el shell.
+
 ## 2026-09-09 (cont.) — Optimización de carga Fase 2 (`data/viewer.html`)
 
 - **Poll condicional** en `loadFilesAutomatically` (modo servidor): sondeo ligero de `state.json`

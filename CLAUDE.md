@@ -47,11 +47,12 @@ No hay framework de test ni lint. La verificación habitual tras tocar `index.js
 la frecuencia de la regla activa. También dispara `cleanup.js` **dos veces al día** (primera pasada
 tras las 00:00 y tras las 12:00, hora `REPORT_TIME_ZONE`; gate `state.lastCleanupSlot`).
 
-`node cleanup.js` (entrypoint CLI) ejecuta el cleanup incondicionalmente: colapsa rachas de 3+
-líneas iguales en `data/history.jsonl` (ignorando `timestamp`) dejando primera+última y **mueve** las
-del centro a `data/cleanup-archive.jsonl` (mismo formato que `history.jsonl`), tras volcar antes
-`history.tmp.jsonl`. Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup` y una tarea DSM
-opcional a las 00:00/12:00.
+`node cleanup.js` (entrypoint CLI) ejecuta el cleanup incondicionalmente: colapsa rachas de 2+
+líneas iguales en `data/history.jsonl` (ignorando `timestamp`) dejando **solo la primera** y
+**mueve** el resto de la racha a `data/cleanup-archive.jsonl` (mismo formato que `history.jsonl`),
+tras volcar antes `history.tmp.jsonl`. Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup`
+y una tarea DSM opcional a las 00:00/12:00. (La compactación de `scheduler.log` mantiene el criterio
+antiguo: rachas de 3+, primera+última.)
 
 ## Arquitectura (3 capas)
 
