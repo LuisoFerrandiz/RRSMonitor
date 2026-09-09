@@ -58,8 +58,9 @@ la frecuencia de la regla activa. También dispara la limpieza diaria (`cleanup.
    (ver final del archivo); no hay framework de routing. Gestiona lo que necesita escritura segura:
    login/logout, config, kanban (+ labels/judges/roles), schedule, users, archive/reset/restore,
    force-flush-history, force-cleanup.
-3. **Dashboard web** — `data/viewer.html` (~270 KB, SPA monolítica) + `data/viewer-ui-logic.js` +
-   `data/kanban-board.js` + `data/schedule-editor.js` + `data/styles.css`. Lee los `.json/.jsonl`
+3. **Dashboard web** — `data/viewer.html` (~270 KB), SPA **monolítica y autocontenida**: todo el
+   HTML/CSS/JS va inline en ese único archivo (usa Tailwind y FontAwesome por CDN; no carga ningún
+   `.js`/`.css` local). `data/index.html` solo redirige a `viewer.html`. Lee los `.json/.jsonl`
    **directamente** (servidos por nginx) y solo llama a `/api/*` para escritura/auth.
 
 **Despliegue** — `docker/nginx.conf`: nginx sirve estáticos de `data/` y hace proxy `/api/` →
@@ -101,9 +102,10 @@ como glob) y reiniciar. `.env.example` es la plantilla.
 ## `data/` está trackeado parcialmente — cuidado con los commits
 
 `.gitignore` excluye `data/*.jsonl`, `data/kanban.json`, `data/users.json`, `data/monitor-config.json`,
-`data/backup_*/` y varios más, pero **`data/viewer.html` y los `.js/.css` del dashboard sí se versionan**
-desde la misma carpeta que los datos mutables. Al commitear revisa que no se cuelan artefactos de
-runtime (`state.json`, `history*.jsonl`, `*.tmp.jsonl`, logs).
+`data/backup_*/` y varios más, pero **`data/viewer.html` y `data/index.html` sí se versionan** desde la
+misma carpeta que los datos mutables. Al commitear revisa que no se cuelan artefactos de runtime
+(`state.json`, `history*.jsonl`, `*.tmp.jsonl`, logs). Nota: `node_modules/` y `.env` siguen trackeados
+pese a estar en `.gitignore` (se añadieron antes de las reglas); no los "re-añadas".
 
 ## Seguridad (estado actual, conocido)
 
