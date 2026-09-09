@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RRS Monitor Dashboard</title>
     <link rel="icon" type="image/png" href="rrs-logo.png">
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -1249,7 +1251,9 @@ let dashboardLastProbe = 0;
 async function dashboardFetch(path) {
     if (!navigator.onLine) return null;
     try {
-        const res = await fetch(fetchUrl(path));
+        // 'no-cache' → el navegador revalida siempre (If-None-Match) y acepta 304.
+        // Sustituye al antiguo ?t=Date.now(), que impedía toda revalidación.
+        const res = await fetch(fetchUrl(path), { cache: 'no-cache' });
         return res;
     } catch {
         return null;
@@ -1275,14 +1279,14 @@ async function detectDashboardServerMode() {
         return 'offline';
     }
 
-    const apiRes = await dashboardFetch(`api/config?t=${now}`);
+    const apiRes = await dashboardFetch(`api/config`);
     if (apiRes?.ok) {
         dashboardServerMode = 'api';
         dashboardConsecutiveFailures = 0;
         return 'api';
     }
 
-    const staticRes = await dashboardFetch(`monitor-config.json?t=${now}`);
+    const staticRes = await dashboardFetch(`monitor-config.json`);
     if (staticRes?.ok) {
         dashboardServerMode = 'static';
         dashboardConsecutiveFailures = 0;
@@ -1580,7 +1584,10 @@ function applyEventBranding(monitorCfg = {}) {
     if (!wrap || !logo || !title) return;
 
     const eventTitle = monitorCfg?.eventTitle || "";
-    const eventLogoUrl = monitorCfg?.eventLogoUrl || "";
+    // El generador externo del boot config puede dejar un placeholder sin sustituir
+    // ("'@ + $logo + @'"); solo aceptamos una URL/ruta de imagen plausible.
+    const rawLogoUrl = String(monitorCfg?.eventLogoUrl || "").trim();
+    const eventLogoUrl = /^(https?:\/\/|\/|\.\/|data:image\/)/.test(rawLogoUrl) ? rawLogoUrl : "";
 
     if (!eventTitle && !eventLogoUrl) {
         wrap.classList.add("hidden");
@@ -1619,7 +1626,7 @@ async function loadMonitorConfig(mode = dashboardServerMode) {
         return readBootMonitorConfig() || defaultMonitorConfig();
     }
     if (mode === 'api') {
-        const res = await dashboardFetch(`api/config?t=${Date.now()}`);
+        const res = await dashboardFetch(`api/config`);
         if (res?.ok) {
             const data = await res.json();
             if (
@@ -1636,7 +1643,7 @@ async function loadMonitorConfig(mode = dashboardServerMode) {
         }
     }
     const boot = readBootMonitorConfig();
-    const res = await dashboardFetch(`monitor-config.json?t=${Date.now()}`);
+    const res = await dashboardFetch(`monitor-config.json`);
     if (res?.ok) {
         const data = await res.json();
         if (
@@ -2807,13 +2814,13 @@ async function resolveScheduleConfig(state, mode = dashboardServerMode) {
         return state?.scheduleConfig || null;
     }
     if (mode === 'api') {
-        const res = await dashboardFetch(`api/schedule?t=${Date.now()}`);
+        const res = await dashboardFetch(`api/schedule`);
         if (res?.ok) {
             const data = await res.json();
             if (data?.schedule?.plans?.length) return data.schedule;
         }
     }
-    const res = await dashboardFetch(`schedule.json?t=${Date.now()}`);
+    const res = await dashboardFetch(`schedule.json`);
     if (res?.ok) {
         const data = await res.json();
         if (data?.plans?.length) return data;
@@ -3016,12 +3023,11 @@ async function loadFilesAutomatically() {
             return;
         }
 
-        const ts = Date.now();
         const [hText, cText, archiveText, sJson, cfgJson] = await Promise.all([
-            dashboardFetch(`history.jsonl?t=${ts}`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`changes.jsonl?t=${ts}`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`cleanup-archive.jsonl?t=${ts}`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`state.json?t=${ts}`).then((r) => (r?.ok ? r.json() : {})),
+            dashboardFetch(`history.jsonl`).then((r) => (r?.ok ? r.text() : "")),
+            dashboardFetch(`changes.jsonl`).then((r) => (r?.ok ? r.text() : "")),
+            dashboardFetch(`cleanup-archive.jsonl`).then((r) => (r?.ok ? r.text() : "")),
+            dashboardFetch(`state.json`).then((r) => (r?.ok ? r.json() : {})),
             loadMonitorConfig(mode),
         ]);
 
@@ -5172,7 +5178,7 @@ async function kanbanFetchUserCatalog() {
   const mode = typeof window.getRrsDashboardMode === "function" ? window.getRrsDashboardMode() : null;
   if (mode === "offline") return { users: [] };
   if (mode === "api") {
-    const res = await kanbanApiFetch(`api/users?t=${Date.now()}`).catch(() => null);
+    const res = await kanbanApiFetch(`api/users`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       if (data.users) return data;
@@ -5188,13 +5194,13 @@ async function kanbanFetchRoleCatalog() {
   const mode = typeof window.getRrsDashboardMode === "function" ? window.getRrsDashboardMode() : null;
   if (mode === "offline") return { roles: kanbanRoleCatalog.roles || [] };
   if (mode === "api") {
-    const res = await fetch(`/api/kanban-roles?t=${Date.now()}`).catch(() => null);
+    const res = await fetch(`/api/kanban-roles`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       if (data.roleCatalog?.roles) return data.roleCatalog;
     }
   }
-  const res = await fetch(`kanban-roles.json?t=${Date.now()}`).catch(() => null);
+  const res = await fetch(`kanban-roles.json`).catch(() => null);
   if (res?.ok) {
     const data = await res.json();
     if (data?.roles) return data;
@@ -5209,13 +5215,13 @@ async function kanbanFetchJudgeCatalog() {
   const mode = typeof window.getRrsDashboardMode === "function" ? window.getRrsDashboardMode() : null;
   if (mode === "offline") return { judges: [] };
   if (mode === "api") {
-    const res = await fetch(`/api/kanban-judges?t=${Date.now()}`).catch(() => null);
+    const res = await fetch(`/api/kanban-judges`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       if (data.judgeCatalog?.judges) return data.judgeCatalog;
     }
   }
-  const res = await fetch(`kanban-judges.json?t=${Date.now()}`).catch(() => null);
+  const res = await fetch(`kanban-judges.json`).catch(() => null);
   if (res?.ok) {
     const data = await res.json();
     if (data?.judges) return data;
@@ -5230,13 +5236,13 @@ async function kanbanFetchLabelCatalog() {
   const mode = typeof window.getRrsDashboardMode === "function" ? window.getRrsDashboardMode() : null;
   if (mode === "offline") return { labels: [...KANBAN_LABEL_CATALOG_DEFAULT] };
   if (mode === "api") {
-    const res = await fetch(`/api/kanban-labels?t=${Date.now()}`).catch(() => null);
+    const res = await fetch(`/api/kanban-labels`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       if (data.labelCatalog?.labels?.length) return data.labelCatalog;
     }
   }
-  const res = await fetch(`kanban-labels.json?t=${Date.now()}`).catch(() => null);
+  const res = await fetch(`kanban-labels.json`).catch(() => null);
   if (res?.ok) {
     const data = await res.json();
     if (data?.labels?.length) return data;
@@ -5256,7 +5262,6 @@ async function kanbanFetchData() {
   }
 
   const mode = typeof window.getRrsDashboardMode === "function" ? window.getRrsDashboardMode() : null;
-  const ts = Date.now();
 
   if (mode === "offline") {
     return {
@@ -5269,7 +5274,7 @@ async function kanbanFetchData() {
   }
 
   if (mode === "api") {
-    const res = await fetch(`/api/kanban?t=${ts}`).catch(() => null);
+    const res = await fetch(`/api/kanban`).catch(() => null);
     if (res?.ok) {
       const data = await res.json();
       let cards = data.kanban?.cards || {};
@@ -5294,11 +5299,11 @@ async function kanbanFetchData() {
   if (mode === "static" || mode === "api") {
     try {
       const [kanbanRes, labelsRes, judgesRes, rolesRes, usersRes] = await Promise.all([
-        fetch(`kanban.json?t=${ts}`).catch(() => null),
-        fetch(`kanban-labels.json?t=${ts}`).catch(() => null),
-        fetch(`kanban-judges.json?t=${ts}`).catch(() => null),
-        fetch(`kanban-roles.json?t=${Date.now()}`).catch(() => null),
-        kanbanApiFetch(`api/users?t=${Date.now()}`).catch(() => null),
+        fetch(`kanban.json`).catch(() => null),
+        fetch(`kanban-labels.json`).catch(() => null),
+        fetch(`kanban-judges.json`).catch(() => null),
+        fetch(`kanban-roles.json`).catch(() => null),
+        kanbanApiFetch(`api/users`).catch(() => null),
       ]);
       let cards = {};
       let labelCatalog = { labels: [...KANBAN_LABEL_CATALOG_DEFAULT] };

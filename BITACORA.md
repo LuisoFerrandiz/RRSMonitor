@@ -23,7 +23,23 @@ sin control de UI. Añadido un botón en su cabecera con menú de 3 opciones:
   Decided; persiste tras recarga; sobrevive al poll de 30 s; sin errores de consola. Los 4 bloques
   `<script>` pasan `new vm.Script`.
 
-### Optimización de carga (solo plan, sin implementar)
+### Optimización de carga — Fase 1 parcial (viewer.html + nginx.conf)
+Implementado (compose/Dockerfile/deploy.sh quedan pendientes de datos del NAS):
+- **`docker/nginx.conf`**: `gzip on` (nivel 6, `gzip_types` con `application/javascript`,
+  `application/json`, `application/x-ndjson`, `image/svg+xml`, …) — HTML y `.jsonl` comprimen
+  ~85-90 %. Cache dividida: `*.json`/`*.jsonl` → `Cache-Control: no-cache` (revalida, 304 vacío);
+  imágenes/fuentes → `public, max-age=2592000`; HTML → `no-cache`. `.jsonl` recibe
+  `default_type application/x-ndjson`. `sendfile`/`tcp_nopush`/`tcp_nodelay`/`keepalive_timeout 65`.
+  Sin validar con `nginx -t` (docker daemon parado) — hacerlo en el deploy.
+- **`data/viewer.html`**: `dashboardFetch` usa `{ cache: 'no-cache' }` y se eliminó
+  `?t=${Date.now()}` de **todos** los fetch (config, schedule, history/changes/cleanup/state,
+  catálogos kanban). Verificado en navegador con servidor local que emite ETag: en la 2ª carga
+  todos los `.json`/`.jsonl` responden **304** (transfer ~300 B vs 757 KB de `history.jsonl`).
+- `<link rel="preconnect">` a los dos CDN (temporal, se quita en Fase 3).
+- `applyEventBranding`: valida `eventLogoUrl` contra `^(https?://|/|./|data:image/)` — descarta el
+  placeholder `'@ + $logo + @'` que deja el generador externo del boot config.
+
+### Optimización de carga — resto del plan (sin implementar)
 Plan en `~/.claude/plans/estudia-como-poder-optimizar-fluffy-feather.md`. Diagnóstico: cold load
 ≈1.08 MB sin comprimir + Tailwind Play CDN y Font Awesome render-blocking; `docker/nginx.conf` sin
 gzip; poll de 30 s con `?t=Date.now()` que rompe toda revalidación; renders sin tope. Fases:
