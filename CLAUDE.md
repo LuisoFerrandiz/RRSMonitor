@@ -67,8 +67,10 @@ antiguo: rachas de 3+, primera+última.)
    login/logout, config, kanban (+ labels/judges/roles), schedule, users, archive/reset/restore,
    force-flush-history, force-cleanup.
 3. **Dashboard web** — `data/viewer.html` (~270 KB), SPA **monolítica y autocontenida**: todo el
-   HTML/CSS/JS va inline en ese único archivo (usa Tailwind y FontAwesome por CDN; no carga ningún
-   `.js`/`.css` local). `data/index.html` solo redirige a `viewer.html`. Lee los `.json/.jsonl`
+   HTML/CSS/JS va inline en ese único archivo. **Sin CDNs**: el CSS de Tailwind (subconjunto
+   generado, ~18 KB con preflight) y los iconos de Font Awesome (40 solid como máscaras SVG
+   `data:` URI) están embebidos en `<style>`; no carga ningún `.js`/`.css`/fuente externo.
+   `data/index.html` solo redirige a `viewer.html`. Lee los `.json/.jsonl`
    **directamente** (servidos por nginx) y solo llama a `/api/*` para escritura/auth.
 
 **Despliegue** — `docker/nginx.conf`: nginx sirve estáticos de `data/` y hace proxy `/api/` →

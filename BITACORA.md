@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-09-10 (cont.) — Fase 3 optimización: fuera Tailwind Play CDN + Font Awesome CDN
+
+- **Objetivo**: `data/viewer.html` cargaba `cdn.tailwindcss.com` (script ~300 KB que además
+  **compila las clases en el navegador en cada arranque**) y `font-awesome/6.4.0/css/all.min.css`
+  de cdnjs (+ webfonts). Dos peticiones externas y trabajo de CPU en cliente en cada carga.
+- **Tailwind**: generado **una sola vez** el CSS mínimo con `tailwindcss@3.4.17` en modo
+  `content` escaneando `viewer.html` (274 clases reales + valores arbitrarios `text-[9px]`,
+  `max-w-[360px]`, etc.; sin `dark:`; breakpoints `sm/md/lg`). Resultado: **~18 KB** de CSS
+  (incluye preflight) embebido inline en un `<style>` tras el bloque de estilos propio
+  (mismo orden de cascada que tenía el CDN, que inyectaba al final del `<head>`).
+- **Font Awesome**: subconjunto de **40 iconos solid** realmente usados, embebidos como
+  **máscaras SVG** (`data:` URI en `--fa-svg` + `mask`/`-webkit-mask` sobre `currentColor`).
+  ~31 KB inline. **Sin tocar el marcado**: los `<i class="fas fa-x">` siguen igual, incluido el
+  dinámico `fa-chevron-${dir}` (chevron-up/down ambos incluidos). Aliases FA5→FA6 resueltos
+  (`search`→magnifying-glass, `columns`→table-columns, `trash-alt`→trash-can,
+  `question-circle`→circle-question, `users-cog`→users-gear, `external-link-alt`→up-right-from-square,
+  `gear`, `right-to/from-bracket`). `.fa-spin` reimplementado con `@keyframes` + respeto a
+  `prefers-reduced-motion`.
+- **Verificado en navegador** (servidor estático + Chrome): layout intacto, los 33 iconos de la
+  vista inicial con máscara aplicada, tabla Documents con cabeceras ordenables (chevron dinámico
+  `^`/`▾` al ordenar por TYPE), buscador, botones Download. **0 errores de consola**. Únicas
+  peticiones externas: la imagen del logo del evento (esperada). El dashboard ya funciona
+  **sin internet**.
+- **Regeneración** (si cambian clases/iconos): `npm i tailwindcss@3.4.17 @fortawesome/fontawesome-free@6.4.0`
+  en un dir aparte; `tailwindcss -c <cfg con content=viewer.html> -i in.css -o out.css --minify`;
+  para FA, mapear cada clase `fa-*` a su SVG solid canónico y embeberlo como `data:` URI de
+  máscara. **No hay build step en el repo**: el CSS va ya resuelto dentro de `viewer.html`.
+
 ## 2026-09-09 (cont.) — Log: filtro de fuente revisado + rename de etiqueta
 
 - **Revisión del filtro de la pestaña Log** (`#filterSource` en `data/viewer.html`): confirmado
