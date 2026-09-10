@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-09-10 (cont.) — PENDIENTE: backup 500 en producción, sin desplegar
+
+- Tras el commit `48ad7a5`, el dashboard sigue dando HTTP 500 al pulsar Backup.
+- Probado vía Tailscale contra `http://100.108.112.9:8083/api/archive`:
+  `{"ok":false,"error":"CONFIG is not defined"}` → **el contenedor `rrs-scheduler`
+  corre `src/api.js` viejo** (el nuevo daría 401: `requireAuth` va antes de
+  `buildArchiveHtml`). `GET /api/auth/status` responde 200: servidor vivo.
+- El usuario reinició `rrs-scheduler` y el 500 persiste. Hipótesis: Syncthing no
+  replicó `src/api.js`, o el contenedor usa código de la imagen y no un bind-mount
+  del volumen sincronizado (haría falta rebuild/redeploy, no solo restart).
+- Siguiente paso (SSH al host): `docker exec rrs-scheduler grep -c archiveFileName
+  /app/src/api.js` y `grep -c archiveFileName <ruta_sync>/src/api.js`. Ver
+  memoria `rrs-backup-500-deploy`.
+
 ## 2026-09-10 (cont.) — Backup: un único `.html` = visor offline + fuente de restauración
 
 - **Problema**: había dos mecanismos descoordinados. `GET /api/archive` (HTML autocontenido)
