@@ -799,6 +799,42 @@ async function saveState(state) {
   await fs.writeFile(CONFIG.stateFile, JSON.stringify(state, null, 2), "utf8");
 }
 
+/**
+ * Reset completo al cambiar `RRS_EVENT_ID`: hace una copia de seguridad de
+ * `state.json` / `checks.jsonl` / `changes.jsonl` en `data/backup_<fecha>/` y
+ * luego los vacía, para que el evento nuevo arranque de cero (el ciclo actual
+ * se registrará como línea base, sin cambios falsos). NO toca kanban, schedule,
+ * monitor-config, users ni scheduler.log.
+ */
+async function resetEventDataOnEventChange(oldId, newId) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const backupDir = path.join(CONFIG.dataDir, `backup_${stamp}`);
+  const files = [CONFIG.stateFile, CONFIG.checksFile, CONFIG.changesFile];
+  try {
+    await fs.mkdir(backupDir, { recursive: true });
+    for (const f of files) {
+      try {
+        await fs.copyFile(f, path.join(backupDir, path.basename(f)));
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
+      }
+    }
+  } catch (e) {
+    console.error(`[EVENT_CHANGE] No se pudo hacer copia de seguridad: ${e.message}`);
+  }
+  for (const f of files) {
+    try {
+      await fs.unlink(f);
+    } catch (e) {
+      if (e.code !== "ENOENT") console.error(`[EVENT_CHANGE] ${path.basename(f)}: ${e.message}`);
+    }
+  }
+  console.log(
+    `[EVENT_CHANGE] RRS_EVENT_ID ${oldId} -> ${newId}: reset completo. ` +
+    `Copia en ${path.basename(backupDir)}; state.json / checks.jsonl / changes.jsonl vaciados.`
+  );
+}
+
 async function fetchHtml(url) {
   const response = await fetch(url, {
     headers: {
@@ -3344,7 +3380,15 @@ async function runMonitorCycle() {
     }
   }
 
-  const previousState = await loadState();
+  let previousState = await loadState();
+  // Si el estado guardado es de OTRO evento (cambió RRS_EVENT_ID), reset completo:
+  // se vacían state/checks/changes (con copia de seguridad) y este ciclo pasa a ser
+  // la línea base del evento nuevo. Solo se dispara si el estado previo TENÍA un
+  // eventId guardado y es distinto (un state antiguo sin eventId no cuenta).
+  if (previousState && previousState.eventId && previousState.eventId !== CONFIG.eventId) {
+    await resetEventDataOnEventChange(previousState.eventId, CONFIG.eventId || "sin id");
+    previousState = null;
+  }
   const previousRows = previousState?.rows || [];
   const previousTimeLimits = previousState?.timeLimitRows || [];
   const previousDocumentRows = previousState?.documentRows || [];
@@ -3525,6 +3569,7 @@ async function runMonitorCycle() {
 
   const snapshot = {
     timestamp,
+    eventId: CONFIG.eventId || null,
     decisionRowCount: decisionRowsForState.length,
     decisionRows: decisionRowsForState,
     rowCount: currentRows.length,
