@@ -4,6 +4,7 @@ require("dotenv").config({ path: path.join(__dirname, ".env") });
 const fs = require("fs/promises");
 const fsSync = require("fs");
 const cheerio = require("cheerio");
+const { syncKanbanCards } = require("./src/kanbanSync");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
 const resolvedDataDir = process.env.DATA_DIR
@@ -213,6 +214,10 @@ const CONFIG = {
   // completos con buffer/flush de 30 min).
   checksFile: path.join(resolvedDataDir, "checks.jsonl"),
   changesFile: path.join(resolvedDataDir, "changes.jsonl"),
+  // kanban.json: tablero del dashboard. El monitor solo hace alta ADITIVA de tarjetas
+  // para casos de RRS que aún no la tienen y marca las huérfanas (caso desaparecido).
+  // Nunca modifica ni borra tarjetas existentes. Ver src/kanbanSync.js.
+  kanbanFile: path.join(resolvedDataDir, "kanban.json"),
   telegramEnabled: process.env.TELEGRAM_ENABLED === "true",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
   telegramChatId: process.env.TELEGRAM_CHAT_ID || "",
@@ -802,11 +807,53 @@ async function saveState(state) {
 }
 
 /**
+ * Mantiene `data/kanban.json` al día tras cada ciclo: da de alta tarjetas para los
+ * casos de RRS que aún no la tienen (con `updatedAt` = fecha del ciclo, inmutable) y
+ * marca como huérfanas las de casos que ya no aparecen. Aditivo y no destructivo;
+ * cualquier error se registra sin abortar el ciclo. Ver src/kanbanSync.js.
+ */
+async function syncKanbanFromSnapshot(snapshot) {
+  try {
+    let kanban = { cards: {} };
+    try {
+      const raw = await fs.readFile(CONFIG.kanbanFile, "utf8");
+      const parsed = raw && raw.trim() ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && parsed.cards) kanban = parsed;
+    } catch (e) {
+      if (e.code !== "ENOENT") {
+        console.error(`[KANBAN] kanban.json ilegible (${e.message}); se parte de vacío.`);
+      }
+    }
+
+    // syncKanbanCards(state, kanban, now); aquí el "state" es el snapshot del ciclo.
+    const { cards, added, orphaned, restored } = syncKanbanCards(
+      snapshot,
+      kanban,
+      new Date().toISOString()
+    );
+
+    if (added.length || orphaned.length || restored.length) {
+      await fs.writeFile(
+        CONFIG.kanbanFile,
+        JSON.stringify({ cards }, null, 2),
+        "utf8"
+      );
+      console.log(
+        `[KANBAN] +${added.length} nueva(s), ${orphaned.length} huérfana(s), ${restored.length} recuperada(s).`
+      );
+    }
+  } catch (error) {
+    console.error(`[KANBAN] Sincronización omitida: ${error.message}`);
+  }
+}
+
+/**
  * Reset completo al cambiar `RRS_EVENT_ID`: hace una copia de seguridad de
  * `state.json` / `checks.jsonl` / `changes.jsonl` en `data/backup_<fecha>/` y
  * luego los vacía, para que el evento nuevo arranque de cero (el ciclo actual
  * se registrará como línea base, sin cambios falsos). NO toca kanban, schedule,
- * monitor-config, users ni scheduler.log.
+ * monitor-config, users ni scheduler.log. Las tarjetas kanban del evento anterior
+ * se conservan tal cual (syncKanbanCards no las marca huérfanas: distinto `eventId`).
  */
 async function resetEventDataOnEventChange(oldId, newId) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -3675,6 +3722,7 @@ async function runMonitorCycle() {
   }
 
   await saveState(snapshot);
+  await syncKanbanFromSnapshot(snapshot);
 }
 
 async function main() {

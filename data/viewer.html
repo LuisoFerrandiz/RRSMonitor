@@ -394,6 +394,14 @@
         .rrs-schedule-inactive .rrs-schedule-time { opacity: 0.85; }
         .kanban-dropzone--over { background: var(--rrs-accent-soft); outline: 2px dashed var(--rrs-primary-vivid); outline-offset: -4px; }
         .kanban-card:hover { border-color: var(--rrs-primary-vivid); }
+        .kanban-card--orphaned { border-style: dashed; opacity: 0.72; }
+        .kanban-card--orphaned:hover { opacity: 0.9; }
+        .kanban-card-orphan-badge {
+            background: var(--rrs-inactive-bg);
+            color: var(--rrs-inactive-text);
+            border: 1px solid var(--rrs-inactive-border);
+            white-space: nowrap;
+        }
         .kanban-decided-sort { position: relative; }
         .kanban-decided-sort-panel {
             position: absolute;
@@ -2908,6 +2916,10 @@ window.bootstrapKanbanFromDashboardState = function bootstrapKanbanFromDashboard
     const timeLimitRows = stateData?.timeLimitRows || [];
     if (!rows.length && !decisionRows.length && !timeLimitRows.length) return { cards: {} };
 
+    // `updatedAt` = fecha de descarga de RRS (inmutable). Coincide con src/kanbanSync.js.
+    const rrsStamp = stateData?.timestamp || new Date().toISOString();
+    const rrsEventId = stateData?.eventId || null;
+
     function labelIdsFromType(type) {
         const t = String(type || "").trim().toLowerCase();
         if (t === "protest") return ["protest"];
@@ -2945,6 +2957,8 @@ window.bootstrapKanbanFromDashboardState = function bootstrapKanbanFromDashboard
             decisionUrl: "",
             decisionText: "",
             notes: "",
+            eventId: rrsEventId,
+            updatedAt: rrsStamp,
         };
     }
 
@@ -2983,6 +2997,8 @@ window.bootstrapKanbanFromDashboardState = function bootstrapKanbanFromDashboard
             decisionText: decisionText || existing.decisionText || "",
             hearingLinks: detail.hearingLinks || existing.hearingLinks || [],
             notes: existing.notes || "",
+            eventId: existing.eventId || rrsEventId,
+            updatedAt: existing.updatedAt || rrsStamp,
         };
     }
 
@@ -3003,6 +3019,8 @@ window.bootstrapKanbanFromDashboardState = function bootstrapKanbanFromDashboard
             limitTime: String(row.limitTime || "").trim(),
             timedOut: false,
             notes: "",
+            eventId: rrsEventId,
+            updatedAt: rrsStamp,
         };
     }
 
@@ -3973,10 +3991,11 @@ function kanbanCardBodyText(value, maxLen, card) {
   return kanbanPreviewText(s, maxLen);
 }
 
-function kanbanCardFaceClasses() {
-  return kanbanCanEdit()
+function kanbanCardFaceClasses(card) {
+  const base = kanbanCanEdit()
     ? "cursor-grab active:cursor-grabbing"
     : "cursor-pointer";
+  return card && card.orphaned ? `${base} kanban-card--orphaned` : base;
 }
 
 function kanbanCardDragAttr() {
@@ -4249,6 +4268,7 @@ function kanbanCaseNumberSortValue(card) {
   return Number.isFinite(fromKey) ? fromKey : 0;
 }
 
+// `updatedAt` es la fecha de descarga de RRS (inmutable): ordena por "más reciente en RRS".
 function kanbanSortDecidedColumn(a, b) {
   const ta = Date.parse(a?.updatedAt || "") || 0;
   const tb = Date.parse(b?.updatedAt || "") || 0;
@@ -4392,9 +4412,15 @@ function kanbanRenderCardHeader(card) {
         <i class="${card.minimalView ? "fas fa-eye-slash" : "fas fa-eye"}"></i>
       </button>`
     : "";
+  const orphanBadge = card.orphaned
+    ? `<span class="kanban-card-orphan-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase" title="This case is no longer published on RRS">Not in RRS</span>`
+    : "";
   return `
     <div class="flex items-start justify-between gap-2 mb-2 min-w-0">
-      <div class="font-bold text-base shrink-0" style="color: var(--rrs-primary-vivid);">${kanbanEscapeHtml(kanbanCaseLabel(card))}</div>
+      <div class="flex items-center gap-2 min-w-0">
+        <div class="font-bold text-base shrink-0" style="color: var(--rrs-primary-vivid);">${kanbanEscapeHtml(kanbanCaseLabel(card))}</div>
+        ${orphanBadge}
+      </div>
       <div class="flex items-start gap-1 shrink-0 min-w-0">
         ${minimalBtn}
         ${badges ? `<div class="kanban-card-labels flex flex-wrap gap-1 justify-end min-w-0">${badges}</div>` : ""}
@@ -4406,7 +4432,7 @@ function kanbanRenderDecidedMinimalCardFace(card) {
   const decision = String(card.decisionText || "").trim();
   const decisionPreview = kanbanCardBodyText(decision, 160, card);
   return `
-    <article class="kanban-card rrs-card rounded-lg p-3 ${kanbanCardFaceClasses()} shadow-sm"${kanbanCardDragAttr()}
+    <article class="kanban-card rrs-card rounded-lg p-3 ${kanbanCardFaceClasses(card)} shadow-sm"${kanbanCardDragAttr()}
       data-case-key="${kanbanEscapeHtml(card.caseKey)}">
       ${kanbanRenderCardHeader(card)}
       ${decisionPreview ? `<div class="mt-2 pt-2 border-t text-sm whitespace-pre-wrap break-words" style="border-color: var(--rrs-border); color: var(--rrs-text);" title="${kanbanEscapeHtml(decision)}"><span class="font-semibold" style="color: var(--rrs-muted);">Decision:</span> ${kanbanEscapeHtml(decisionPreview)}</div>` : ""}
@@ -4543,7 +4569,7 @@ function kanbanRenderCardFace(card) {
   const judgesHtml = fields.has("judges") ? kanbanRenderCardJudgeBadges(card) : "";
 
   return `
-    <article class="kanban-card rrs-card rounded-lg p-3 ${kanbanCardFaceClasses()} shadow-sm"${kanbanCardDragAttr()}
+    <article class="kanban-card rrs-card rounded-lg p-3 ${kanbanCardFaceClasses(card)} shadow-sm"${kanbanCardDragAttr()}
       data-case-key="${kanbanEscapeHtml(card.caseKey)}">
       ${kanbanRenderCardHeader(card)}
       <div class="text-sm space-y-1" style="color: var(--rrs-text);">${rows.join("")}</div>
@@ -4629,7 +4655,7 @@ function applyKanbanBoardLayout(board, grouped) {
 // Control de orden para la cabecera de la columna "Decided": botón + menú con 3 opciones.
 // Patrón calcado de kanbanRenderLabelsDropdown. Los textos van en inglés (UI).
 const KANBAN_DECIDED_SORT_LABELS = {
-  modified: "Last modified",
+  modified: "By RRS date",
   case_desc: "Case no. ↓",
   case_asc: "Case no. ↑",
 };
@@ -5015,7 +5041,6 @@ async function kanbanToggleCardMinimalView(caseKey) {
   const nextCard = {
     ...card,
     minimalView: !card.minimalView,
-    updatedAt: new Date().toISOString(),
   };
 
   const nextData = {
@@ -5062,8 +5087,8 @@ async function toggleKanbanMinimalView() {
 }
 
 // Ojo a nivel de columna "Decided": aplica la vista mínima/completa a todas sus tarjetas.
-// A diferencia de kanbanToggleCardMinimalView, NO toca `updatedAt` (es solo cambio de vista,
-// no debe reordenar la columna en el modo "Last modified").
+// Ninguna acción de UI (vista, mover, editar) toca `updatedAt`: esa fecha es la de descarga
+// de RRS y es inmutable.
 async function kanbanToggleDecidedColumnMinimalView() {
   const keys = kanbanDecidedCardKeys();
   if (!keys.length) return;
@@ -5408,7 +5433,6 @@ async function kanbanMoveCard(caseKey, columnId) {
         column: columnId,
         columnManual: true,
         manualOverride: true,
-        updatedAt: new Date().toISOString(),
       },
     },
   };
@@ -5440,7 +5464,6 @@ async function saveKanbanCardFromModal() {
         limitTime: kanbanFieldValue("kanbanDetailLimitTime"),
         notes: kanbanFieldValue("kanbanDetailNotes"),
         manualOverride: true,
-        updatedAt: new Date().toISOString(),
       }
     : {
         ...card,
@@ -5460,7 +5483,6 @@ async function saveKanbanCardFromModal() {
         decisionUrl: kanbanFieldValue("kanbanDetailDecisionUrl"),
         notes: kanbanFieldValue("kanbanDetailNotes"),
         judgeAssignments: kanbanReadJudgeAssignments(),
-        updatedAt: new Date().toISOString(),
       };
 
   const saveBtn = document.getElementById("kanbanDetailSave");

@@ -13,6 +13,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { syncKanbanCards } = require('./kanbanSync');
 
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
@@ -542,7 +543,21 @@ const router = {
   },
 
   'GET /api/kanban': (req, res) => {
-    const kanban = readJson(KANBAN_FILE, { cards: {} });
+    let kanban = readJson(KANBAN_FILE, { cards: {} });
+    // Alta aditiva de tarjetas nuevas y marca de orfandad desde el estado scrapeado,
+    // por si el monitor no ha corrido desde que aparecieron casos nuevos en RRS.
+    try {
+      const state = readJson(STATE_FILE, null);
+      if (state) {
+        const r = syncKanbanCards(state, kanban, new Date().toISOString());
+        if (r.added.length || r.orphaned.length || r.restored.length) {
+          kanban = { cards: r.cards };
+          writeJson(KANBAN_FILE, kanban);
+        }
+      }
+    } catch (e) {
+      console.error('[KANBAN] sync en GET /api/kanban omitida:', e.message);
+    }
     sendJson(res, 200, {
       kanban: { cards: kanban.cards || {} },
       labelCatalog: readJson(KANBAN_LABELS_FILE, { labels: [] }),

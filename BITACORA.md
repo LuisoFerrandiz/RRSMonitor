@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-09-10 (cont.) — Fecha de tarjeta kanban = fecha de descarga de RRS (inmutable) + alta/orfandad desde el servidor
+
+- **Problema**: `updatedAt` de una tarjeta kanban era un timestamp de acción de usuario — el
+  "ojo" (vista mínima), mover de columna y guardar el modal lo re-sellaban, reordenando la
+  columna "Decided". Además las tarjetas solo se materializaban una vez (bootstrap cliente con
+  el tablero vacío); los casos nuevos de RRS no aparecían.
+- **`updatedAt` ahora es la fecha de descarga de RRS y es inmutable**: se sella al crear la
+  tarjeta (con el `timestamp` del ciclo) y **ninguna acción de UI la toca**. `data/viewer.html`:
+  quitados los 3 `updatedAt: new Date()...` (`kanbanToggleCardMinimalView`, `kanbanMoveCard`,
+  `saveKanbanCardFromModal` ×2); la opción de orden "Last modified" → **"By RRS date"**; el
+  bootstrap cliente sella `updatedAt: stateData.timestamp` + `eventId`.
+- **`src/kanbanSync.js`** (nuevo, Node vanilla): `syncKanbanCards(state, kanban, now)` — réplica
+  de la parte pura del bootstrap. **Aditivo estricto**: crea tarjetas para casos de RRS que no
+  la tienen; **nunca** modifica ni borra una existente. Marca `orphaned:true` (+ `orphanedAt`)
+  las tarjetas cuyo caso ya no está en RRS y limpia la marca si reaparece. No orfana tarjetas de
+  otro `eventId` (el kanban se conserva al cambiar de evento) ni las de time limit.
+- **`index.js`**: `syncKanbanFromSnapshot(snapshot)` tras `saveState`; escribe `kanban.json` solo
+  si hubo altas/huérfanas/recuperadas. Falla suave. **`src/api.js`**: `GET /api/kanban` corre la
+  misma sync (cubre la ventana entre ciclos).
+- **Orfandad en la UI**: tarjeta con borde discontinuo + opacidad + badge "Not in RRS"; sigue
+  siendo arrastrable/editable.
+- Verificado: `node --check` ×3, 7/7 tests unitarios de `syncKanbanCards`, `npm run once` real
+  (`kanban.json` `{}` → 9 tarjetas de las 9 decisiones, `updatedAt` = timestamp del ciclo;
+  segundo ciclo sin cambios). Navegador: toggle del ojo no cambia `updatedAt`, orden "By RRS
+  date", badge de orfandad OK, sin errores de consola.
+
 ## 2026-09-10 (cont.) — Cirugía de datos del evento viejo + línea base en el Log
 
 - **Cirugía** (manual, con backup en `data/backup_surgery_*`): se quitaron de `checks.jsonl`

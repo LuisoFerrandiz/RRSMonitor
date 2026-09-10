@@ -60,7 +60,10 @@ Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup` y una tarea cron op
    `data/checks.jsonl` (1 línea diminuta por ciclo SIEMPRE: `timestamp` + `changed` + contadores;
    `appendCheck`) y `data/changes.jsonl` (delta compacto, solo ciclos con cambios), luego Trello
    y Telegram. `checks.jsonl` es la fuente de la pestaña Log del dashboard; `changes.jsonl` de los
-   timelines por sección.
+   timelines por sección. Tras `saveState`, `syncKanbanFromSnapshot` (usa `src/kanbanSync.js`)
+   da de alta en `data/kanban.json` las tarjetas de casos de RRS que aún no la tienen y marca
+   como huérfanas (`orphaned`) las de casos que han desaparecido — **aditivo**: nunca modifica
+   ni borra tarjetas existentes.
 2. **API backend** — `src/api.js`, servidor HTTP nativo Node en `:3000`. Auth por Bearer token en
    memoria (`sessions` Map, TTL 12 h). `router` es un objeto plano `'MÉTODO /api/ruta' → handler`
    (ver final del archivo); no hay framework de routing. Gestiona lo que necesita escritura segura:
@@ -108,6 +111,11 @@ como glob) y reiniciar. `.env.example` es la plantilla.
 - Scraping robusto vía `extractRrsGenericTable` + registro declarativo `RRS_TABULAR_SECTIONS`: dirigido
   por cabeceras, tolera reordenación de columnas, columnas `d-none` y `404` (se trata como sección vacía,
   log informativo, no `console.error`). Una sección deshabilitada **conserva** las filas previas del estado.
+- **Kanban**: la fecha de una tarjeta (`updatedAt`) es la de descarga de RRS y es **inmutable** —
+  se sella al crear la tarjeta y ninguna acción de UI (ver/minimizar, mover de columna, editar el
+  modal) la cambia. La columna "Decided" ordena por esa fecha ("By RRS date"). El alta de tarjetas
+  nuevas y la marca de orfandad las hace el servidor (`src/kanbanSync.js`, desde `index.js` en cada
+  ciclo y desde `GET /api/kanban`); el bootstrap cliente de `viewer.html` solo cubre el tablero vacío.
 
 ## `data/` está trackeado parcialmente — cuidado con los commits
 
