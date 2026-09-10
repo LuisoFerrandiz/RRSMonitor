@@ -4,6 +4,25 @@
 
 ---
 
+## 2026-09-10 (cont.) — Reset automático al cambiar `RRS_EVENT_ID` + Log por defecto solo cambios
+
+- **Log por defecto = "Changes only"** (commit `86ceea8`): `#filterSource` arranca mostrando
+  solo los ciclos con cambios; "All checks" (todas las revisiones de `checks.jsonl`) queda como
+  opción secundaria. `getHistoryLogSource()` defaultea a `changes`.
+- **Reset automático al cambiar de evento** (commit `4c44258`): el `snapshot` guarda ahora
+  `eventId` en `state.json`. Al inicio de `runMonitorCycle`, si `previousState.eventId` existe
+  y difiere del `CONFIG.eventId` configurado → `resetEventDataOnEventChange()`: copia
+  `state.json` / `checks.jsonl` / `changes.jsonl` a `data/backup_<fecha>/` y los vacía; el
+  ciclo pasa a línea base (`baseline:true`, sin "todo lo viejo borrado / todo lo nuevo
+  añadido"). **NO toca** kanban, schedule, monitor-config, users, scheduler.log.
+  - Solo dispara si el estado previo YA tenía `eventId`; un `state.json` viejo sin `eventId`
+    no cuenta → se le estampa el id en el siguiente guardado y el reset actúa en cambios
+    futuros. Decisión del usuario: NO resetear el estado actual (13730 venía de un salto
+    sucio desde Sardinia); el "cambio falso" de ese salto se queda en el log.
+  - Verificado en dir de datos aislado (`DATA_DIR=`): `99999 -> 13730` crea backup, vacía los
+    3 archivos, el ciclo escribe 1 línea baseline en cada uno, kanban intacto. Y `npm run once`
+    real: sin `[EVENT_CHANGE]` (no reset), `state.json` queda con `"eventId": "13730"`.
+
 ## 2026-09-10 (cont.) — `history.jsonl` retirado → `checks.jsonl` (auditoría) + `changes.jsonl`
 
 - **Problema**: `history.jsonl` escribía un snapshot completo por ciclo (todos los arrays de
