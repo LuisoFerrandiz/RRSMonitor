@@ -3986,10 +3986,21 @@ function kanbanCanToggleMinimalView() {
   return true; // Allow for all users to toggle minimal view on decided cards
 }
 
+// Vista efectiva de la tarjeta. Si `minimalView` no está fijado explícitamente,
+// las tarjetas de la columna "decided" salen compactadas por defecto: es solo UX
+// (el ojo sigue alternando y a partir de ahí fija el valor explícito). Las
+// tarjetas existentes llevan `minimalView` explícito, así que esto solo afecta a
+// las que van llegando a "decided".
+function kanbanCardMinimal(card) {
+  if (!card) return false;
+  if (typeof card.minimalView === "boolean") return card.minimalView;
+  return (card.column || "hearing_request") === "decided";
+}
+
 function kanbanCardBodyText(value, maxLen, card) {
   const s = String(value || "").trim();
   if (!s) return "";
-  if (kanbanIsArchiveView() && !card?.minimalView) return s;
+  if (kanbanIsArchiveView() && !kanbanCardMinimal(card)) return s;
   return kanbanPreviewText(s, maxLen);
 }
 
@@ -4406,12 +4417,13 @@ function kanbanRenderCardLabelBadges(card) {
 
 function kanbanRenderCardHeader(card) {
   const badges = kanbanRenderCardLabelBadges(card);
+  const cardMinimal = kanbanCardMinimal(card);
   const minimalBtn = kanbanCanToggleMinimalView()
     ? `<button type="button" class="kanban-card-minimal-toggle rrs-btn px-2 py-1 rounded-lg text-xs shrink-0"
         data-case-key="${kanbanEscapeHtml(card.caseKey)}"
-        title="${card.minimalView ? "Show all fields" : "Minimal view"}"
-        aria-pressed="${card.minimalView ? "true" : "false"}">
-        <i class="${card.minimalView ? "fas fa-eye-slash" : "fas fa-eye"}"></i>
+        title="${cardMinimal ? "Show all fields" : "Minimal view"}"
+        aria-pressed="${cardMinimal ? "true" : "false"}">
+        <i class="${cardMinimal ? "fas fa-eye-slash" : "fas fa-eye"}"></i>
       </button>`
     : "";
   const orphanBadge = card.orphaned
@@ -4495,7 +4507,7 @@ function kanbanMountDetailFileLinks(card) {
 function updateKanbanDetailFieldVisibility(columnId, card) {
   const col = kanbanIsTimeLimitCard(card) ? "time_limit" : columnId;
   let allowed = kanbanVisibleFieldsForColumn(col);
-  if (card?.minimalView && col === "decided") {
+  if (kanbanCardMinimal(card) && col === "decided") {
     allowed = new Set(["decisionText"]);
   }
   document.querySelectorAll("#kanbanDetailModal [data-kanban-field]").forEach((el) => {
@@ -4544,19 +4556,20 @@ function kanbanRenderTimeLimitCardFace(card) {
 function kanbanRenderCardFace(card) {
   const column = card.column || "hearing_request";
   const fields = kanbanVisibleFieldsForColumn(column);
+  const minimal = kanbanCardMinimal(card);
   const notes = String(card.notes || "").trim();
   const notesPreview = kanbanCardBodyText(notes, 120, card);
   const decision = String(card.decisionText || "").trim();
   const decisionPreview = kanbanCardBodyText(decision, 160, card);
 
   const rows = [];
-  if (fields.has("initiator") && !card.minimalView) {
+  if (fields.has("initiator") && !minimal) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Initiator:</span> ${kanbanEscapeHtml(card.initiator || "—")}</div>`);
   }
-  if (fields.has("respondent") && !card.minimalView) {
+  if (fields.has("respondent") && !minimal) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Respondent:</span> ${kanbanEscapeHtml(card.respondent || "—")}</div>`);
   }
-  if (fields.has("race") && !card.minimalView) {
+  if (fields.has("race") && !minimal) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">Race:</span> ${kanbanEscapeHtml(card.race || "—")}</div>`);
   }
   if (fields.has("type")) {
@@ -4566,8 +4579,8 @@ function kanbanRenderCardFace(card) {
     rows.push(`<div><span class="font-semibold" style="color: var(--rrs-muted);">T.Schedule:</span> ${kanbanEscapeHtml(kanbanFormatSchedule(card.schedule))}</div>`);
   }
 
-  const showForm = fields.has("form") && card.protestFormUrl && !card.minimalView;
-  const showDecisionLink = fields.has("decisionUrl") && card.decisionUrl && !card.minimalView;
+  const showForm = fields.has("form") && card.protestFormUrl && !minimal;
+  const showDecisionLink = fields.has("decisionUrl") && card.decisionUrl && !minimal;
   const judgesHtml = fields.has("judges") ? kanbanRenderCardJudgeBadges(card) : "";
 
   return `
@@ -4727,7 +4740,7 @@ function kanbanDecidedCardKeys() {
 function kanbanRenderDecidedBulkEyeControl() {
   const keys = kanbanDecidedCardKeys();
   const cards = kanbanData.cards || {};
-  const anyOpen = keys.some((k) => cards[k] && !cards[k].minimalView);
+  const anyOpen = keys.some((k) => cards[k] && !kanbanCardMinimal(cards[k]));
   // anyOpen → el clic cerrará todas (mostramos fa-eye); si no, el clic abrirá todas (fa-eye-slash).
   return `<button type="button" class="kanban-decided-bulk-eye rrs-btn px-2 py-1 rounded-lg text-xs shrink-0"
       title="${anyOpen ? "Minimal view for all" : "Show all fields for all"}"
@@ -5025,7 +5038,7 @@ function updateKanbanDetailMinimalToggle(card) {
   const btn = document.getElementById("kanbanDetailMinimalToggle");
   if (!btn) return;
   const icon = btn.querySelector("i");
-  const on = !!card?.minimalView;
+  const on = kanbanCardMinimal(card);
   const isDecided = (card?.column || "hearing_request") === "decided";
   if (icon) icon.className = on ? "fas fa-eye-slash" : "fas fa-eye";
   btn.title = on
@@ -5042,7 +5055,7 @@ async function kanbanToggleCardMinimalView(caseKey) {
 
   const nextCard = {
     ...card,
-    minimalView: !card.minimalView,
+    minimalView: !kanbanCardMinimal(card),
   };
 
   const nextData = {
@@ -5095,7 +5108,7 @@ async function kanbanToggleDecidedColumnMinimalView() {
   const keys = kanbanDecidedCardKeys();
   if (!keys.length) return;
   const cards = kanbanData.cards || {};
-  const anyOpen = keys.some((k) => cards[k] && !cards[k].minimalView);
+  const anyOpen = keys.some((k) => cards[k] && !kanbanCardMinimal(cards[k]));
   const nextMinimal = anyOpen; // hay alguna abierta → cerrar todas; si no → abrir todas
   const nextCards = { ...cards };
   for (const k of keys) {

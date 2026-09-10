@@ -4,6 +4,19 @@
 
 ---
 
+## 2026-09-10 (cont.) — Kanban: las tarjetas nuevas de "decided" salen compactadas
+
+- UX, sin cambio de lógica ni de columnas. Nueva función `kanbanCardMinimal(card)`:
+  si `minimalView` no está fijado como booleano, una tarjeta en la columna `decided`
+  se renderiza compactada por defecto (como el ojo). Las tarjetas existentes ya llevan
+  `minimalView` explícito, así que esto solo afecta a las que van llegando.
+- Todos los puntos de render que leían `card.minimalView` (cara de la tarjeta, cabecera
+  con el ojo, visibilidad de campos del modal, ojo masivo de la columna, toggles)
+  pasan por el helper. El ojo alterna sobre el valor efectivo y a partir de ahí fija
+  el booleano explícito.
+- `data/kanban.json` local: las 9 tarjetas actuales quedan con `minimalView:false`
+  (el usuario compacta a mano las que quiera). `kanban.json` no se versiona ni sincroniza.
+
 ## 2026-09-10 (cont.) — Kanban: los jueces/roles/labels no se guardaban (401 + contrato roto)
 
 - **Síntoma**: al abrir una tarjeta se podían elegir jueces, pero no se guardaban ni
