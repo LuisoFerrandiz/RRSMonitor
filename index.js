@@ -207,10 +207,11 @@ const CONFIG = {
   intervalMs: Number(process.env.POLL_INTERVAL_MS || 60_000),
   dataDir: resolvedDataDir,
   stateFile: path.join(resolvedDataDir, "state.json"),
-  historyFile: path.join(resolvedDataDir, "history.jsonl"),
-  historyTmpFile: path.join(resolvedDataDir, "history.tmp.jsonl"),
-  historyLastFlushFile: path.join(resolvedDataDir, "history-last-flush.json"),
-  historyFlushIntervalMs: 30 * 60 * 1000,
+  // checks.jsonl: 1 línea diminuta por ciclo (SIEMPRE), con `timestamp`, `changed` y los
+  // contadores por sección. Es la auditoría de "cada vez que el sistema ha mirado" y la
+  // fuente de la pestaña Log del dashboard. Sustituye al antiguo history.jsonl (snapshots
+  // completos con buffer/flush de 30 min).
+  checksFile: path.join(resolvedDataDir, "checks.jsonl"),
   changesFile: path.join(resolvedDataDir, "changes.jsonl"),
   telegramEnabled: process.env.TELEGRAM_ENABLED === "true",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN || "",
@@ -744,36 +745,42 @@ async function appendJsonLine(filePath, payload) {
   await fs.appendFile(filePath, line, "utf8");
 }
 
-async function appendHistoryBuffered(payload) {
-  const line = `${JSON.stringify(payload)}\n`;
-  await fs.appendFile(CONFIG.historyTmpFile, line, "utf8");
+const PENDING_DECISION_TEXTS = new Set([
+  "pending",
+  "decision pending",
+  "hearing pending",
+]);
 
-  const now = Date.now();
-  let lastFlush = 0;
-  try {
-    const data = await fs.readFile(CONFIG.historyLastFlushFile, "utf8");
-    if (data && data.trim()) {
-      lastFlush = JSON.parse(data).lastFlush || 0;
-    }
-  } catch (e) {
-    await fs.writeFile(CONFIG.historyLastFlushFile, JSON.stringify({ lastFlush: now }), "utf8");
-    return;
-  }
-
-  if (now - lastFlush >= CONFIG.historyFlushIntervalMs) {
-    await flushHistory();
-    await fs.writeFile(CONFIG.historyLastFlushFile, JSON.stringify({ lastFlush: now }), "utf8");
-  }
+/** nº de decisiones "resueltas" (con texto y que no es un marcador de pendiente). */
+function countDecidedDecisionRows(decisionRows) {
+  return (decisionRows || []).filter((r) => {
+    const t = String(r && r.text != null ? r.text : "").trim().toLowerCase();
+    return t && !PENDING_DECISION_TEXTS.has(t);
+  }).length;
 }
 
-async function flushHistory() {
-  try {
-    const content = await fs.readFile(CONFIG.historyTmpFile, "utf8");
-    await fs.appendFile(CONFIG.historyFile, content, "utf8");
-    await fs.unlink(CONFIG.historyTmpFile);
-  } catch (e) {
-    if (e.code !== "ENOENT") console.error("[HISTORY_FLUSH] Error:", e.message);
-  }
+/**
+ * Registra en checks.jsonl una línea por ciclo (siempre). Formato plano con las mismas
+ * claves `*RowCount` que consume el dashboard, más `changed` y `decidedDecisionRowCount`.
+ */
+async function appendCheck(snapshot, changed) {
+  const check = {
+    timestamp: snapshot.timestamp,
+    changed: Boolean(changed),
+    rowCount: snapshot.rowCount || 0,
+    decisionRowCount: snapshot.decisionRowCount || 0,
+    decidedDecisionRowCount: countDecidedDecisionRows(snapshot.decisionRows),
+    timeLimitRowCount: snapshot.timeLimitRowCount || 0,
+    documentRowCount: snapshot.documentRowCount || 0,
+    questionRowCount: snapshot.questionRowCount || 0,
+    scoringInquiryRowCount: snapshot.scoringInquiryRowCount || 0,
+    penaltyRowCount: snapshot.penaltyRowCount || 0,
+    retirementRowCount: snapshot.retirementRowCount || 0,
+    penaltyReportRowCount: snapshot.penaltyReportRowCount || 0,
+    crewSubstitutionRowCount: snapshot.crewSubstitutionRowCount || 0,
+    equipmentSubstitutionRowCount: snapshot.equipmentSubstitutionRowCount || 0,
+  };
+  await appendJsonLine(CONFIG.checksFile, check);
 }
 
 async function loadState() {
@@ -3554,7 +3561,7 @@ async function runMonitorCycle() {
     fullDecisionSyncedByCase,
   };
 
-  await appendHistoryBuffered(snapshot);
+  await appendCheck(snapshot, shouldRecordChanges);
 
   if (!previousState) {
     console.log(

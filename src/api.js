@@ -4,9 +4,9 @@
  * Servidor HTTP nativo de Node.js en el puerto 3000 dentro del contenedor rrs-scheduler.
  * Sirve auth, config, kanban, schedule, users, backup (archive/reset/restore) y force-cleanup.
  *
- * Los datos estáticos (state.json, history.jsonl, changes.jsonl, cleanup-archive.jsonl)
- * los sirve nginx directamente; este servicio solo gestiona la lógica y los archivos
- * que requieren escritura segura (auth, config, kanban, schedule, users, backups).
+ * Los datos estáticos (state.json, checks.jsonl, changes.jsonl) los sirve nginx
+ * directamente; este servicio solo gestiona la lógica y los archivos que requieren
+ * escritura segura (auth, config, kanban, schedule, users, backups).
  */
 
 const http = require('http');
@@ -28,9 +28,8 @@ const SCHEDULE_FILE = path.join(DATA_DIR, 'schedule.json');
 const MONITOR_CONFIG_FILE = path.join(DATA_DIR, 'monitor-config.json');
 const VIEWER_FILE = path.join(DATA_DIR, 'viewer.html');
 const STATE_FILE = path.join(DATA_DIR, 'state.json');
-const HISTORY_FILE = path.join(DATA_DIR, 'history.jsonl');
+const CHECKS_FILE = path.join(DATA_DIR, 'checks.jsonl');
 const CHANGES_FILE = path.join(DATA_DIR, 'changes.jsonl');
-const CLEANUP_ARCHIVE_FILE = path.join(DATA_DIR, 'cleanup-archive.jsonl');
 const ENV_FILE = path.join(APP_DIR, '.env');
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000; // 12 horas
@@ -357,17 +356,8 @@ function buildArchiveHtml() {
   // Filtrar estado según FLAGS habilitados
   const filteredState = filterStateByEnabledFlags(state.state || state);
 
-  // Filtrar historial según FLAGS habilitados
-  const historyLines = (readFileSafe(HISTORY_FILE) || '').split('\n').filter(line => {
-    if (!line.trim()) return false;
-    try {
-      const entry = JSON.parse(line);
-      return isEntryEnabledByFlags(entry);
-    } catch {
-      return false;
-    }
-  });
-  const historyRaw = historyLines.join('\n') + (historyLines.length ? '\n' : '');
+  // checks.jsonl: líneas planas de contadores, sin `tipo` → no hay nada que filtrar por flags.
+  const checksRaw = readFileSafe(CHECKS_FILE) || '';
 
   // Filtrar cambios según FLAGS habilitados
   const changeLines = (readFileSafe(CHANGES_FILE) || '').split('\n').filter(line => {
@@ -385,9 +375,8 @@ function buildArchiveHtml() {
     version: 1,
     exportedAt: new Date().toISOString(),
     state: filteredState,
-    historyRaw,
+    checksRaw,
     changesRaw,
-    cleanupArchiveRaw: readFileSafe(CLEANUP_ARCHIVE_FILE),
     schedule,
     kanban: { cards: kanban.cards || {}, labelCatalog: readJson(KANBAN_LABELS_FILE, { labels: [] }), judgeCatalog: readJson(KANBAN_JUDGES_FILE, { judges: [] }), roleCatalog: readJson(KANBAN_ROLES_FILE, { roles: [] }) },
     userCatalog,
@@ -409,10 +398,9 @@ function buildArchiveHtml() {
 function resetEventData() {
   const empty = '{}';
   writeFileSafe(stateBackupTarget(), currentSnapshot());
-  writeFileSafe(HISTORY_FILE, '');
+  writeFileSafe(CHECKS_FILE, '');
   writeFileSafe(CHANGES_FILE, '');
   writeFileSafe(STATE_FILE, empty);
-  writeFileSafe(CLEANUP_ARCHIVE_FILE, '');
   writeFileSafe(USERS_ACTIVITY_FILE, '');
   try {
     const schedulerLog = path.join(DATA_DIR, 'scheduler.log');
@@ -424,7 +412,7 @@ function resetEventData() {
 function currentSnapshot() {
   return JSON.stringify({
     state: readJson(STATE_FILE, {}),
-    history: readLines(HISTORY_FILE),
+    checks: readLines(CHECKS_FILE),
     changes: readLines(CHANGES_FILE),
     schedule: readJson(SCHEDULE_FILE, null),
     kanban: readJson(KANBAN_FILE, null),
@@ -787,44 +775,33 @@ const router = {
     const session = requireAuth(req, res);
     if (!session) return;
     const body = await readBody(req);
-    if (!body || (body.state === undefined && body.history === undefined && body.events === undefined)) {
+    if (!body) {
+      return sendJson(res, 400, { ok: false, error: 'Invalid restore bundle' });
+    }
+    // El bundle "rrs-restore-v1" trae `checksRaw` / `changesRaw` (texto jsonl). Se aceptan
+    // también `checks` / `changes` como arrays por compatibilidad.
+    const checksRaw = body.checksRaw !== undefined ? body.checksRaw : body.checks;
+    const changesRaw = body.changesRaw !== undefined ? body.changesRaw : body.changes;
+    if (body.state === undefined && checksRaw === undefined && changesRaw === undefined && body.events === undefined) {
       return sendJson(res, 400, { ok: false, error: 'Invalid restore bundle' });
     }
     if (body.state !== undefined) writeJson(STATE_FILE, typeof body.state === 'string' ? JSON.parse(body.state) : body.state);
-    if (body.history !== undefined) {
-      const history = Array.isArray(body.history)
-        ? body.history.map((l) => JSON.stringify(l)).join('\n') + '\n'
-        : String(body.history || '');
-      writeFileSafe(HISTORY_FILE, history);
+    if (checksRaw !== undefined) {
+      const checks = Array.isArray(checksRaw)
+        ? checksRaw.map((l) => JSON.stringify(l)).join('\n') + '\n'
+        : String(checksRaw || '');
+      writeFileSafe(CHECKS_FILE, checks);
     }
-    if (body.changes !== undefined) {
-      const changes = Array.isArray(body.changes)
-        ? body.changes.map((l) => JSON.stringify(l)).join('\n') + '\n'
-        : String(body.changes || '');
+    if (changesRaw !== undefined) {
+      const changes = Array.isArray(changesRaw)
+        ? changesRaw.map((l) => JSON.stringify(l)).join('\n') + '\n'
+        : String(changesRaw || '');
       writeFileSafe(CHANGES_FILE, changes);
     }
     if (body.schedule !== undefined && body.schedule.plans) writeJson(SCHEDULE_FILE, body.schedule);
     if (body.kanban !== undefined) writeJson(KANBAN_FILE, body.kanban);
     if (session.username) logUserActivity(session.username, 'restore');
     sendJson(res, 200, { ok: true });
-  },
-
-  'POST /api/force-flush-history': (req, res) => {
-    const session = requireAuth(req, res);
-    if (!session) return;
-    try {
-      const tmpFile = path.join(DATA_DIR, 'history.tmp.jsonl');
-      const historyFile = path.join(DATA_DIR, 'history.jsonl');
-      if (fs.existsSync(tmpFile)) {
-        const content = fs.readFileSync(tmpFile, 'utf8');
-        fs.appendFileSync(historyFile, content, 'utf8');
-        fs.unlinkSync(tmpFile);
-      }
-      if (session.username) logUserActivity(session.username, 'flush-history');
-      sendJson(res, 200, { ok: true });
-    } catch (e) {
-      sendJson(res, 500, { ok: false, error: e.message });
-    }
   },
 
   'POST /api/force-cleanup': (req, res) => {

@@ -290,9 +290,8 @@ async function main() {
     const state = await readJson(STATE_FILE, {});
     const slot = `${dateKey}-${minutesOfDay < 720 ? "AM" : "PM"}`; // 720 = 12:00
     if (state.lastCleanupSlot !== slot) {
-      const historyPath = path.join(DATA_DIR, "history.jsonl");
       const logPath = path.join(DATA_DIR, "scheduler.log");
-      await performCleanup(historyPath, logPath);
+      await performCleanup(logPath);
       state.lastCleanupSlot = slot;
       await fs.writeFile(STATE_FILE, JSON.stringify(state, null, 2), "utf8");
     }

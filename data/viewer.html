@@ -653,9 +653,8 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 </div>
                 <div id="filterSourceWrap" class="hidden">
                     <select id="filterSource" class="rrs-input px-4 py-2 rounded-lg border bg-white" style="border-color: var(--rrs-border); background: var(--rrs-surface);">
-                        <option value="all" selected>All</option>
-                        <option value="history">History</option>
-                        <option value="cleanup">Cleanup archive</option>
+                        <option value="all" selected>All checks</option>
+                        <option value="changes">Only changes</option>
                     </select>
                 </div>
             </div>
@@ -979,7 +978,7 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         </div>
                     </div>
 
-                    <!-- Row 2: Restore | Flush History -->
+                    <!-- Row 2: Restore -->
                     <div class="backup-live-only border border-gray-100 rounded-lg p-3">
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-2">
@@ -989,18 +988,6 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                             <p class="text-xs text-gray-500">Load JSON backup</p>
                             <button id="backupImportBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium">
                                 Select file…
-                            </button>
-                        </div>
-                    </div>
-                    <div class="border border-blue-100 rounded-lg p-3 bg-blue-50/30">
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-arrow-down text-blue-400 text-sm"></i>
-                                <h3 class="text-xs font-bold text-gray-800">Flush History</h3>
-                            </div>
-                            <p class="text-xs text-gray-500">Write now</p>
-                            <button id="backupFlushHistoryBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-blue-200 text-blue-600 hover:bg-blue-50 font-medium">
-                                <i class="fas fa-arrow-down mr-1" id="backupFlushHistoryIcon"></i>Flush
                             </button>
                         </div>
                     </div>
@@ -1150,13 +1137,10 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
 
     <!-- Scripts -->
     <script>// Variables globales
-let historyLines = [];
+// checks.jsonl: 1 línea por ciclo (siempre), con `timestamp`, `changed` y los contadores por
+// sección. Es la fuente de la pestaña Log. Sustituye al antiguo history.jsonl + cleanup-archive.
+let checkLines = [];
 let changesLines = [];
-let cleanupArchiveLines = [];
-// Estado de la última descarga de cleanup-archive.jsonl (servidor): si no dio 200 lo marcamos
-// para poder distinguir "archivo vacío" de "archivo no servido / 404" en la pestaña Log.
-let cleanupArchiveUnavailable = false;
-let cleanupArchiveStatus = 0;
 let stateData = {};
 let currentTab = 'kanban';
 const tableSortByTab = {
@@ -1169,9 +1153,8 @@ const tableSortByTab = {
     penaltyReports: { key: 'date', dir: 'desc' },
     crewSubstitutions: { key: 'date', dir: 'desc' },
     equipmentSubstitutions: { key: 'date', dir: 'desc' },
-    history: { key: 'dateTime', dir: 'desc' },
-    cleanupHistory: { key: 'dateTime', dir: 'desc' },
-    allHistory: { key: 'dateTime', dir: 'desc' },
+    allChecks: { key: 'dateTime', dir: 'desc' },
+    changesOnly: { key: 'dateTime', dir: 'desc' },
 };
 
 // Orden de la columna Kanban "Decided" elegido por el usuario. Se recuerda en localStorage
@@ -1237,8 +1220,6 @@ const HEARINGS_TABLE_COLUMNS = [
 // Elementos del DOM
 const cleanupBtn = document.getElementById('cleanupBtn');
 const cleanupIcon = document.getElementById('cleanupIcon');
-const backupFlushHistoryBtn = document.getElementById('backupFlushHistoryBtn');
-const backupFlushHistoryIcon = document.getElementById('backupFlushHistoryIcon');
 const backupBtn = document.getElementById('backupBtn');
 const backupModal = document.getElementById('backupModal');
 const backupModalBackdrop = document.getElementById('backupModalBackdrop');
@@ -1503,8 +1484,10 @@ function buildLogTableColumns(rows, monitorCfg = getMonitorCfg()) {
     ];
 }
 
-function renderLogStatusCell() {
-    return '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">OK</span></td>';
+function renderLogStatusCell(row) {
+    return row && row.changed
+        ? '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">CHANGED</span></td>'
+        : '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">OK</span></td>';
 }
 
 function renderLogTableRow(row, metricCols, fmt = (v) => String(v ?? 0)) {
@@ -1514,7 +1497,7 @@ function renderLogTableRow(row, metricCols, fmt = (v) => String(v ?? 0)) {
             ${cell(when, "px-4 py-3 text-xs whitespace-nowrap")}
             ${cell(row.origin, "px-4 py-3 text-xs")}
             ${renderLogMetricCells(row, metricCols, fmt)}
-            ${renderLogStatusCell()}
+            ${renderLogStatusCell(row)}
         </tr>
     `;
 }
@@ -1546,7 +1529,7 @@ function renderUnifiedLogTable(rows, { emptyMessage = "Empty log", sortTab, fmt 
         }
     );
 
-    // Tope de render: el log (history + cleanup-archive fusionados) puede crecer mucho.
+    // Tope de render: checks.jsonl (1 línea por ciclo) puede crecer mucho.
     const LOG_RENDER_CAP = 500;
     const shown = sorted.slice(0, LOG_RENDER_CAP);
     let html = shown.map((row) => renderLogTableRow(row, metricCols, fmt)).join("");
@@ -2430,9 +2413,8 @@ function buildRestoreBundle() {
         eventId: stateData?.eventId || arch?.eventId || monitorConfig?.eventId || null,
         monitorConfig,
         state: stateData || {},
-        historyRaw: arch?.historyRaw ?? linesToRaw(historyLines),
+        checksRaw: arch?.checksRaw ?? linesToRaw(checkLines),
         changesRaw: arch?.changesRaw ?? linesToRaw(changesLines),
-        cleanupArchiveRaw: arch?.cleanupArchiveRaw ?? linesToRaw(cleanupArchiveLines),
         schedule,
         kanban: kanbanData || arch?.kanban || { cards: {} },
         labelCatalog: arch?.labelCatalog || kanbanLabelCatalog || null,
@@ -3034,11 +3016,8 @@ async function loadFilesAutomatically() {
             try { return JSON.parse(l); } catch(e) { return null; }
         }).filter(l => l !== null).reverse();
 
-        historyLines = data.historyRaw ? parse(data.historyRaw) : (data.history || []);
+        checkLines = data.checksRaw ? parse(data.checksRaw) : (data.checks || []);
         changesLines = data.changesRaw ? parse(data.changesRaw) : (data.changes || []);
-        cleanupArchiveLines = data.cleanupArchiveRaw ? parse(data.cleanupArchiveRaw) : [];
-        cleanupArchiveUnavailable = false;
-        cleanupArchiveStatus = 0;
         stateData = data.state || {};
         const scheduleFromArchive = data.schedule?.plans?.length ? data.schedule : null;
         window.dashboardData = { scheduleConfig: scheduleFromArchive || stateData.scheduleConfig || null };
@@ -3073,7 +3052,7 @@ async function loadFilesAutomatically() {
             applyEventBranding(bootCfg);
             await loadKanbanData();
             updateKanbanStat();
-            if (!historyLines.length && !Object.keys(stateData || {}).length) {
+            if (!checkLines.length && !Object.keys(stateData || {}).length) {
                 setEmptyState("No connection to server");
             }
             updateStats();
@@ -3084,13 +3063,13 @@ async function loadFilesAutomatically() {
         }
 
         // Sondeo ligero: state.json es pequeño y su `timestamp` cambia en cada ciclo del monitor.
-        // Si no cambió desde el último poll, no re-descargamos history/changes (grandes) ni
-        // re-renderizamos toda la tabla.
+        // Si no cambió desde el último poll, no re-descargamos checks/changes ni re-renderizamos
+        // toda la tabla.
         const sJsonRes = await dashboardFetch(`state.json`);
         const sJson = sJsonRes?.ok ? await sJsonRes.json() : {};
         const stateStamp = String(sJson.timestamp || "");
         if (dashboardLoadedOnce && stateStamp && stateStamp === lastStateStamp) {
-            // state.json sin cambios: evitamos re-descargar/parsear history+changes y re-renderizar
+            // state.json sin cambios: evitamos re-descargar/parsear checks+changes y re-renderizar
             // el log. El kanban sí puede haber cambiado desde otro cliente, así que se refresca.
             await loadKanbanData();
             updateKanbanStat();
@@ -3099,28 +3078,19 @@ async function loadFilesAutomatically() {
             return;
         }
 
-        const [hText, cText, archiveInfo, cfgJson] = await Promise.all([
-            dashboardFetch(`history.jsonl`).then((r) => (r?.ok ? r.text() : "")),
+        const [hText, cText, cfgJson] = await Promise.all([
+            dashboardFetch(`checks.jsonl`).then((r) => (r?.ok ? r.text() : "")),
             dashboardFetch(`changes.jsonl`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`cleanup-archive.jsonl`).then(async (r) => ({
-                ok: !!(r && r.ok),
-                status: r ? r.status : 0,
-                text: r?.ok ? await r.text() : "",
-            })),
             loadMonitorConfig(mode),
         ]);
-        const archiveText = archiveInfo.text;
 
         const parseLines = (txt) => (txt || "").trim().split('\n')
             .filter(l => l.trim() && !l.startsWith('<!DOCTYPE'))
             .map(l => { try { return JSON.parse(l); } catch(e) { return null; } })
             .filter(l => l !== null).reverse();
 
-        historyLines = parseLines(hText);
+        checkLines = parseLines(hText);
         changesLines = parseLines(cText);
-        cleanupArchiveLines = parseLines(archiveText);
-        cleanupArchiveUnavailable = !archiveInfo.ok;
-        cleanupArchiveStatus = archiveInfo.status;
         stateData = sJson || {};
         const scheduleConfig = await resolveScheduleConfig(stateData, mode);
         window.dashboardData = { monitorConfig: cfgJson, scheduleConfig };
@@ -3181,7 +3151,7 @@ function updateStats() {
     setT('hearings-count-tab', `(${hearingEvents.length})`);
     setT('documents-count-tab', `(${docEvents.length})`);
     setT('qa-count-tab', `(${qaEvents.length})`);
-    setT('history-count-tab', `(${historyLines.length})`);
+    setT('history-count-tab', `(${checkLines.length})`);
     
     const todayEl = document.getElementById('stat-today-date');
     if (todayEl) todayEl.innerText = formatEventTodayDate();
@@ -3246,25 +3216,12 @@ function renderTrackingEmbed() {
     }
 }
 
-function cleanupArchiveEmptyMessage() {
-    if (!cleanupArchiveUnavailable) return "Empty cleanup archive";
-    return cleanupArchiveStatus
-        ? `Cleanup archive not available on the server (HTTP ${cleanupArchiveStatus})`
-        : "Cleanup archive could not be loaded (offline or network error)";
-}
-
 function getHistoryLogSource() {
-    const value = filterSource?.value || "all";
-    if (value === "cleanup") return "cleanup";
-    if (value === "history") return "history";
-    return "all";
+    return filterSource?.value === "changes" ? "changes" : "all";
 }
 
 function getHistoryLogSortTab() {
-    const source = getHistoryLogSource();
-    if (source === "cleanup") return "cleanupHistory";
-    if (source === "all") return "allHistory";
-    return "history";
+    return getHistoryLogSource() === "changes" ? "changesOnly" : "allChecks";
 }
 
 function updateCardStyles() {
@@ -3354,27 +3311,15 @@ function renderTable() {
 function renderHistoryTable() {
     const source = getHistoryLogSource();
     const sortTab = getHistoryLogSortTab();
-    if (source === "cleanup") {
-        renderUnifiedLogTable(
-            cleanupArchiveLines.map(mapCleanupArchiveToLogRow),
-            { emptyMessage: cleanupArchiveEmptyMessage(), sortTab }
-        );
-        return;
-    }
-    if (source === "all") {
-        renderUnifiedLogTable(
-            [
-                ...historyLines.map(mapHistoryLineToLogRow),
-                ...cleanupArchiveLines.map(mapCleanupArchiveToLogRow),
-            ],
-            { emptyMessage: "Empty log", sortTab }
-        );
-        return;
-    }
-
+    const rows = source === "changes"
+        ? checkLines.filter((l) => l.changed)
+        : checkLines;
     renderUnifiedLogTable(
-        historyLines.map(mapHistoryLineToLogRow),
-        { emptyMessage: "Empty history", sortTab, fmt: (v) => String(v ?? 0) }
+        rows.map(mapCheckLineToLogRow),
+        {
+            emptyMessage: source === "changes" ? "No changes recorded" : "No checks recorded",
+            sortTab,
+        }
     );
 }
 
@@ -3386,12 +3331,13 @@ function countLogDecisions(source) {
     return source?.decisionRowCount || 0;
 }
 
-function mapHistoryLineToLogRow(line) {
+function mapCheckLineToLogRow(line) {
     return {
         dateTime: line.timestamp,
-        origin: "History",
+        origin: line.changed ? "Change" : "Check",
+        changed: !!line.changed,
         rowCount: line.rowCount || 0,
-        decisionRowCount: countLogDecisions(line),
+        decisionRowCount: line.decidedDecisionRowCount ?? countLogDecisions(line),
         timeLimitRowCount: line.timeLimitRowCount || 0,
         documentRowCount: line.documentRowCount || 0,
         questionRowCount: line.questionRowCount || 0,
@@ -3399,59 +3345,6 @@ function mapHistoryLineToLogRow(line) {
         penaltyRowCount: line.penaltyRowCount || 0,
         crewSubstitutionRowCount: line.crewSubstitutionRowCount || 0,
         equipmentSubstitutionRowCount: line.equipmentSubstitutionRowCount || 0,
-    };
-}
-
-function mapCleanupArchiveToLogRow(entry) {
-    const row = mapCleanupArchiveRow(entry);
-    return {
-        dateTime: row.archivedAt,
-        origin: row.source ? `CleanUp · ${row.source}` : "CleanUp",
-        rowCount: row.rowCount,
-        decisionRowCount: row.decisionRowCount,
-        timeLimitRowCount: row.timeLimitRowCount,
-        documentRowCount: row.documentRowCount,
-        questionRowCount: row.questionRowCount,
-        scoringInquiryRowCount: row.scoringInquiryRowCount,
-        penaltyRowCount: row.penaltyRowCount,
-        crewSubstitutionRowCount: row.crewSubstitutionRowCount,
-        equipmentSubstitutionRowCount: row.equipmentSubstitutionRowCount,
-    };
-}
-
-function mapCleanupArchiveRow(entry) {
-    // Formato nuevo (cleanup.js): la línea es un snapshot de history puro (con `timestamp`,
-    // sin envoltorio). Formato legacy: envoltorio { archivedAt, source, payload }.
-    const p = entry && entry.payload ? entry.payload : entry;
-    const archivedAt = (entry && entry.archivedAt) || (p && p.timestamp) || "";
-    const source = (entry && entry.source) || "";
-    if (p && (p.timestamp || p.rowCount != null)) {
-        return {
-            archivedAt,
-            source,
-            rowCount: p.rowCount || 0,
-            decisionRowCount: countLogDecisions(p),
-            timeLimitRowCount: p.timeLimitRowCount || 0,
-            documentRowCount: p.documentRowCount || 0,
-            questionRowCount: p.questionRowCount || 0,
-            scoringInquiryRowCount: p.scoringInquiryRowCount || 0,
-            penaltyRowCount: p.penaltyRowCount || 0,
-            crewSubstitutionRowCount: p.crewSubstitutionRowCount || 0,
-            equipmentSubstitutionRowCount: p.equipmentSubstitutionRowCount || 0,
-        };
-    }
-    return {
-        archivedAt,
-        source,
-        rowCount: null,
-        decisionRowCount: null,
-        timeLimitRowCount: null,
-        documentRowCount: null,
-        questionRowCount: null,
-        scoringInquiryRowCount: null,
-        penaltyRowCount: null,
-        crewSubstitutionRowCount: null,
-        equipmentSubstitutionRowCount: null,
     };
 }
 
@@ -3953,11 +3846,6 @@ if (cleanupBtn) cleanupBtn.addEventListener('click', async () => {
     cleanupBtn.disabled = false; cleanupIcon?.classList.remove('fa-spin');
 });
 
-if (backupFlushHistoryBtn) backupFlushHistoryBtn.addEventListener('click', async () => {
-    backupFlushHistoryBtn.disabled = true; backupFlushHistoryIcon?.classList.add('fa-spin');
-    try { await authFetch('api/force-flush-history', { method: 'POST' }); await loadFilesAutomatically(); } catch(e){}
-    backupFlushHistoryBtn.disabled = false; backupFlushHistoryIcon?.classList.remove('fa-spin');
-});
 
 if (backupBtn) backupBtn.addEventListener("click", openBackupModal);
 if (backupModalClose) backupModalClose.addEventListener("click", closeBackupModal);

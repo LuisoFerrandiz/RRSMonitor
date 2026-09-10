@@ -45,67 +45,15 @@ function reduceLines(lines, getComparisonKey, onRemove, opts) {
 }
 
 /**
- * Vuelca a history.jsonl las líneas que index.js dejó pendientes en history.tmp.jsonl,
- * para que el cleanup también las tenga en cuenta. Réplica mínima de flushHistory().
+ * Compacta `scheduler.log`: quita las líneas de "injected env" y colapsa rachas de 3+
+ * mensajes [SCHEDULER] equivalentes (ignorando la fecha/hora) dejando primera+última.
+ *
+ * `history.jsonl` ya no existe (lo sustituyó `checks.jsonl`, 1 línea diminuta por ciclo
+ * sin buffer), así que el cleanup solo se ocupa del log del scheduler.
  */
-async function flushHistoryTmp(historyPath) {
-  const tmpPath = path.join(path.dirname(historyPath), 'history.tmp.jsonl');
-  try {
-    const content = await fs.readFile(tmpPath, 'utf8');
-    if (content && content.trim()) {
-      await fs.appendFile(historyPath, content.endsWith('\n') ? content : content + '\n', 'utf8');
-    }
-    await fs.unlink(tmpPath);
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      console.error(`[CLEANUP] Error al volcar history.tmp.jsonl: ${e.message}`);
-    }
-  }
-}
-
-async function performCleanup(historyPath, logPath) {
+async function performCleanup(logPath) {
   console.log('[CLEANUP] Iniciando limpieza...');
 
-  // --- 1. Limpiar history.jsonl ---
-  // Regla: si la misma línea (ignorando `timestamp`) se repite 2+ veces seguidas,
-  // dejamos solo la primera y movemos el resto de la racha a cleanup-archive.jsonl
-  // (mismo formato que history.jsonl: la línea de snapshot verbatim, con su timestamp).
-  try {
-    await flushHistoryTmp(historyPath);
-
-    const cleanupArchivePath = path.join(path.dirname(historyPath), 'cleanup-archive.jsonl');
-    const historyData = await fs.readFile(historyPath, 'utf8');
-    const hLines = historyData.split('\n').filter(l => l.trim());
-
-    const movedLines = [];
-    const cleanHLines = reduceLines(
-      hLines,
-      (line) => {
-        try {
-          const obj = JSON.parse(line);
-          delete obj.timestamp; // Ignoramos el tiempo para comparar
-          return JSON.stringify(obj);
-        } catch (e) { return line; }
-      },
-      (line) => movedLines.push(line),
-      { minRun: 2, keepLast: false }
-    );
-
-    if (movedLines.length) {
-      await fs.appendFile(cleanupArchivePath, movedLines.join('\n') + '\n', 'utf8');
-    }
-    await fs.writeFile(historyPath, cleanHLines.join('\n') + '\n', 'utf8');
-    console.log(
-      `[CLEANUP] history.jsonl: ${hLines.length} -> ${cleanHLines.length} líneas ` +
-      `(${movedLines.length} movidas a cleanup-archive.jsonl).`
-    );
-  } catch (e) {
-    if (e.code !== 'ENOENT') {
-      console.error(`[CLEANUP] Error en history.jsonl: ${e.message}`);
-    }
-  }
-
-  // --- 2. Limpiar scheduler.log ---
   try {
     const logData = await fs.readFile(logPath, 'utf8');
     let lLines = logData.split('\n').filter(l => l.trim());
@@ -130,14 +78,14 @@ async function performCleanup(historyPath, logPath) {
 
 module.exports = { performCleanup };
 
-// Entrypoint CLI: `node cleanup.js` (lo usa POST /api/force-cleanup y una tarea DSM a las 00/12).
+// Entrypoint CLI: `node cleanup.js` (lo usa POST /api/force-cleanup y una tarea cron a las 00/12).
 // Ejecuta siempre; el gate de franja horaria vive solo en scheduler.js.
 if (require.main === module) {
   require('dotenv').config({ path: path.join(__dirname, '.env') });
   const dataDir = process.env.DATA_DIR
     ? path.resolve(process.env.DATA_DIR)
     : path.join(__dirname, 'data');
-  performCleanup(path.join(dataDir, 'history.jsonl'), path.join(dataDir, 'scheduler.log'))
+  performCleanup(path.join(dataDir, 'scheduler.log'))
     .then(() => process.exit(0))
     .catch((e) => {
       console.error('[CLEANUP]', e.message);

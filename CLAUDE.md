@@ -47,25 +47,25 @@ No hay framework de test ni lint. La verificación habitual tras tocar `index.js
 la frecuencia de la regla activa. También dispara `cleanup.js` **dos veces al día** (primera pasada
 tras las 00:00 y tras las 12:00, hora `REPORT_TIME_ZONE`; gate `state.lastCleanupSlot`).
 
-`node cleanup.js` (entrypoint CLI) ejecuta el cleanup incondicionalmente: colapsa rachas de 2+
-líneas iguales en `data/history.jsonl` (ignorando `timestamp`) dejando **solo la primera** y
-**mueve** el resto de la racha a `data/cleanup-archive.jsonl` (mismo formato que `history.jsonl`),
-tras volcar antes `history.tmp.jsonl`. Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup`
-y una tarea DSM opcional a las 00:00/12:00. (La compactación de `scheduler.log` mantiene el criterio
-antiguo: rachas de 3+, primera+última.)
+`node cleanup.js` (entrypoint CLI) compacta **solo `scheduler.log`**: quita las líneas
+"injected env" y colapsa rachas de 3+ mensajes `[SCHEDULER]` equivalentes (primera+última).
+Lo usan el gate de `scheduler.js`, `POST /api/force-cleanup` y una tarea cron opcional a las
+00:00/12:00. (Ya no toca `history.jsonl`: ese archivo se retiró en favor de `checks.jsonl`.)
 
 ## Arquitectura (3 capas)
 
 1. **Scraper / monitor** — `index.js` (~3.400 líneas, núcleo), `scheduler.js`, `cleanup.js`.
    `runMonitorCycle()` (index.js:3322) es el ciclo completo: descarga HTML con `fetch` (User-Agent de
    Chrome real para evitar bloqueo), parsea con `cheerio`, compara contra `data/state.json`, escribe
-   `data/history.jsonl` (con buffer, flush cada ~30 min) y `data/changes.jsonl` (solo ciclos con
-   cambios), luego Trello y Telegram.
+   `data/checks.jsonl` (1 línea diminuta por ciclo SIEMPRE: `timestamp` + `changed` + contadores;
+   `appendCheck`) y `data/changes.jsonl` (delta compacto, solo ciclos con cambios), luego Trello
+   y Telegram. `checks.jsonl` es la fuente de la pestaña Log del dashboard; `changes.jsonl` de los
+   timelines por sección.
 2. **API backend** — `src/api.js`, servidor HTTP nativo Node en `:3000`. Auth por Bearer token en
    memoria (`sessions` Map, TTL 12 h). `router` es un objeto plano `'MÉTODO /api/ruta' → handler`
    (ver final del archivo); no hay framework de routing. Gestiona lo que necesita escritura segura:
    login/logout, config, kanban (+ labels/judges/roles), schedule, users, archive/reset/restore,
-   force-flush-history, force-cleanup.
+   force-cleanup.
 3. **Dashboard web** — `data/viewer.html` (~270 KB), SPA **monolítica y autocontenida**: todo el
    HTML/CSS/JS va inline en ese único archivo. **Sin CDNs**: el CSS de Tailwind (subconjunto
    generado, ~18 KB con preflight) y los iconos de Font Awesome (40 solid como máscaras SVG
@@ -94,7 +94,7 @@ como glob) y reiniciar. `.env.example` es la plantilla.
   el scrap de título/logo/URL de resultados del evento. No editarlo a mano como fuente.
 - `data/schedule.json` (planes de frecuencia de polling por fecha/franja horaria) lo consume
   `scheduler.js` y lo edita el dashboard vía `/api/schedule`.
-- Timestamps (`state.json`, `history.jsonl`, `changes.jsonl`, consola, Telegram) en `Europe/Madrid`;
+- Timestamps (`state.json`, `checks.jsonl`, `changes.jsonl`, consola, Telegram) en `Europe/Madrid`;
   override con `REPORT_TIME_ZONE` (cualquier zona IANA).
 
 ## Comportamiento a recordar
@@ -114,8 +114,10 @@ como glob) y reiniciar. `.env.example` es la plantilla.
 `.gitignore` excluye `data/*.jsonl`, `data/kanban.json`, `data/users.json`, `data/monitor-config.json`,
 `data/backup_*/` y varios más, pero **`data/viewer.html` y `data/index.html` sí se versionan** desde la
 misma carpeta que los datos mutables. Al commitear revisa que no se cuelan artefactos de runtime
-(`state.json`, `history*.jsonl`, `*.tmp.jsonl`, logs). Nota: `node_modules/` y `.env` siguen trackeados
-pese a estar en `.gitignore` (se añadieron antes de las reglas); no los "re-añadas".
+(`state.json`, `checks.jsonl`, `changes.jsonl`, logs). `checks.jsonl` (auditoría de cada revisión)
+llega al servidor por Syncthing, no por git. Nota: `node_modules/` y `.env` siguen trackeados pese a
+estar en `.gitignore` (se añadieron antes de las reglas); no los "re-añadas". `data/state.json` y
+`data/changes.jsonl` también quedaron trackeados de antes.
 
 ## Seguridad (estado actual, conocido)
 

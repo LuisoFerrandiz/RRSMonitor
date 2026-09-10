@@ -7,7 +7,6 @@ data/kanban.json
 data/users.json
 data/users-activity.jsonl
 data/monitor-config.json
-data/history-last-flush.json
 data/scheduler-last-run.json
 data/backup_*/
 # Archivos temporales o de sistema

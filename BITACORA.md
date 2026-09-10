@@ -4,6 +4,45 @@
 
 ---
 
+## 2026-09-10 (cont.) — `history.jsonl` retirado → `checks.jsonl` (auditoría) + `changes.jsonl`
+
+- **Problema**: `history.jsonl` escribía un snapshot completo por ciclo (todos los arrays de
+  filas + los mapas internos de Trello), ~8 KB/línea, con buffer y flush cada 30 min, y
+  `cleanup.js` lo colapsaba a `cleanup-archive.jsonl`. 52+44 líneas = ~756 KB. El dashboard
+  solo usaba de esas líneas los escalares `*RowCount`.
+- **Nuevo modelo**:
+  - `data/checks.jsonl` — 1 línea diminuta **cada ciclo, siempre** (`appendCheck` en
+    `index.js`): `timestamp` + `changed` (bool) + contadores por sección +
+    `decidedDecisionRowCount` (precalculado con la regla pending). ~290 B/línea. Es la fuente
+    de la pestaña Log. Sin buffer. **gitignore** (llega al server por Syncthing).
+  - `data/changes.jsonl` — sin cambios (delta compacto solo en ciclos con cambios).
+  - `data/state.json` — sin cambios.
+- **Retirado**: `history.jsonl`, `history.tmp.jsonl`, `history-last-flush.json`,
+  `cleanup-archive.jsonl`; `appendHistoryBuffered`/`flushHistory` y `CONFIG.history*` de
+  `index.js`; el bloque de history de `cleanup.js` (ahora solo compacta `scheduler.log`);
+  `POST /api/force-flush-history` y el botón "Flush History" del modal Backup.
+- **`data/viewer.html`**: `historyLines`→`checkLines`; fetch de `checks.jsonl` (uno, en vez de
+  history + cleanup-archive); `mapHistoryLineToLogRow`→`mapCheckLineToLogRow` (lee
+  `decidedDecisionRowCount` directo, añade `changed`); `renderHistoryTable` con filtro
+  `all`/`changes`; `#filterSource` → `All checks` / `Only changes`; columna Status muestra
+  `CHANGED` (ámbar) vs `OK`; `tableSortByTab` → `allChecks`/`changesOnly`; se eliminan
+  `mapCleanupArchiveRow`/`mapCleanupArchiveToLogRow`/`cleanupArchiveEmptyMessage` y el estado
+  `cleanupArchive*`. Archive export: `checksRaw` en vez de `historyRaw`/`cleanupArchiveRaw`.
+- **`src/api.js`**: `HISTORY_FILE`→`CHECKS_FILE`, fuera `CLEANUP_ARCHIVE_FILE`; `buildArchive`
+  → `checksRaw` (sin filtro por flags, que era no-op); `currentSnapshot`/`resetEventData`;
+  `POST /api/restore` acepta `checksRaw`/`changesRaw` (antes leía `body.history`/`body.changes`,
+  que no casaban con el bundle — bug preexistente, ahora arreglado).
+- **`scheduler.js`**: `performCleanup(logPath)` (sin `historyPath`).
+- **Migración**: `scripts/migrate-history-to-checks.js` — convierte `history.jsonl` +
+  `cleanup-archive.jsonl` (96 snapshots) a `checks.jsonl`, marcando `changed:true` los
+  timestamps presentes en `changes.jsonl` (45/96). Ejecutado sobre los datos reales.
+- **Verificado**: `node --check` de los 4 backends + `vm.Script` de los 4 `<script>` de
+  viewer.html; migración (96 líneas, formato OK); dashboard en navegador (Log renderiza desde
+  `checks.jsonl`, Origin Check/Change, Status OK/CHANGED, filtro All checks / Only changes = 45,
+  0 errores de consola).
+- `git rm --cached data/history.jsonl data/history-last-flush.json`. `checks.jsonl` NO se
+  commitea.
+
 ## 2026-09-10 (cont.) — Fusión de pestañas "Crew Substitutions" + "Equipment Substitutions"
 
 - Mismo patrón que el merge Penalty/Retirement (`d341d73`). Solo `data/viewer.html`, sin backend.
