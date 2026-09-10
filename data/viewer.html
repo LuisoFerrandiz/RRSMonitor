@@ -562,7 +562,7 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                             </button>
                         </div>
                     </div>
-                    <input type="file" id="backupImportInput" accept="application/json,.json" class="hidden" />
+                    <input type="file" id="backupImportInput" accept=".html,.json,text/html,application/json" class="hidden" />
                 </div>
             </div>
             <p id="cleanupStatus" class="text-xs text-gray-400 mt-2 hidden"></p>
@@ -960,48 +960,36 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
             </div>
             <div class="p-5 overflow-y-auto custom-scrollbar">
                 <div class="grid grid-cols-2 gap-3">
-                    <!-- Row 1: Export HTML | Export JSON -->
-                    <div class="backup-live-only border rounded-lg p-3" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
+                    <!-- Row 1: Backup file -->
+                    <div class="border rounded-lg p-3" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-2">
                                 <i class="fas fa-download text-blue-500 text-sm"></i>
-                                <h3 class="text-xs font-bold" style="color: var(--rrs-text);">Export HTML</h3>
+                                <h3 class="text-xs font-bold" style="color: var(--rrs-text);">Backup file</h3>
                             </div>
-                            <p class="text-xs" style="color: var(--rrs-muted);">Download single file</p>
+                            <p class="text-xs" style="color: var(--rrs-muted);">Single file: offline viewer + restore source</p>
                             <button id="backupExportHtmlBtn" type="button" class="rrs-btn-primary mt-2 px-3 py-1.5 text-xs rounded-md font-medium">
                                 Download
                             </button>
                         </div>
                     </div>
-                    <div class="backup-archive-only hidden border rounded-lg p-3" style="border-color: var(--rrs-border); background: var(--rrs-primary-soft);">
-                        <div class="flex flex-col gap-2">
-                            <div class="flex items-center gap-2">
-                                <i class="fas fa-file-export text-blue-500 text-sm"></i>
-                                <h3 class="text-xs font-bold text-gray-800">Export JSON</h3>
-                            </div>
-                            <p class="text-xs text-gray-500">JSON package</p>
-                            <button id="backupExportJsonBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-medium">
-                                Download
-                            </button>
-                        </div>
-                    </div>
 
-                    <!-- Row 2: Restore -->
-                    <div class="backup-live-only border border-gray-100 rounded-lg p-3">
+                    <!-- Row 1: Restore -->
+                    <div class="border border-gray-100 rounded-lg p-3">
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-2">
                                 <i class="fas fa-upload text-emerald-500 text-sm"></i>
                                 <h3 class="text-xs font-bold text-gray-800">Restore</h3>
                             </div>
-                            <p class="text-xs text-gray-500">Load JSON backup</p>
+                            <p class="text-xs text-gray-500">Load an .html backup</p>
                             <button id="backupImportBtn" type="button" class="mt-2 px-3 py-1.5 text-xs rounded-md border border-emerald-200 text-emerald-700 hover:bg-emerald-50 font-medium">
                                 Select file…
                             </button>
                         </div>
                     </div>
 
-                    <!-- Row 3: New event -->
-                    <div class="backup-live-only border border-red-100 rounded-lg p-3 bg-red-50/30">
+                    <!-- Row 2: New event -->
+                    <div class="border border-red-100 rounded-lg p-3 bg-red-50/30">
                         <div class="flex flex-col gap-2">
                             <div class="flex items-center gap-2">
                                 <i class="fas fa-trash-alt text-red-400 text-sm"></i>
@@ -1131,7 +1119,8 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
             </div>
             <form id="scheduleEditorForm" class="flex flex-col flex-1 min-h-0">
                 <div id="scheduleEditorPlans" class="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-4"></div>
-                <div class="px-5 py-3 border-t flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
+                <p id="scheduleEditorReadonlyNote" class="hidden px-5 py-2 text-xs text-center border-t" style="border-color: var(--rrs-border); color: var(--rrs-muted);">Read-only (archive)</p>
+                <div id="scheduleEditorActions" class="px-5 py-3 border-t flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between" style="border-color: var(--rrs-border); background: var(--rrs-accent-soft);">
                     <button id="scheduleEditorAddPlan" type="button" class="text-sm font-medium" style="color: var(--rrs-primary);">+ Add plan</button>
                     <div class="flex gap-2 justify-end">
                         <button type="button" id="scheduleEditorCancel" class="rrs-btn px-4 py-2 text-sm rounded-lg">Cancel</button>
@@ -1233,7 +1222,6 @@ const backupModal = document.getElementById('backupModal');
 const backupModalBackdrop = document.getElementById('backupModalBackdrop');
 const backupModalClose = document.getElementById('backupModalClose');
 const backupExportHtmlBtn = document.getElementById('backupExportHtmlBtn');
-const backupExportJsonBtn = document.getElementById('backupExportJsonBtn');
 const backupImportBtn = document.getElementById('backupImportBtn');
 const backupImportInput = document.getElementById('backupImportInput');
 const backupResetBtn = document.getElementById('backupResetBtn');
@@ -2403,73 +2391,92 @@ function getTodayDateKey(timeZone) {
     }
 }
 
-function linesToRaw(lines) {
-    return [...lines]
-        .reverse()
-        .map((l) => JSON.stringify(l))
-        .join("\n") + (lines.length ? "\n" : "");
+// Descarga del archivo de backup único (HTML). La ruta /api/archive exige login,
+// así que hay que ir con `authFetch` (cabecera Bearer), no con una navegación.
+async function downloadBackupFile() {
+    if (!backupExportHtmlBtn) return;
+    backupExportHtmlBtn.disabled = true;
+    backupExportHtmlBtn.textContent = "Generating…";
+    try {
+        const res = await authFetch("api/archive");
+        if (!res.ok) {
+            setBackupStatus(res.status === 401 ? "Please sign in to download a backup." : `Error: HTTP ${res.status}`, "error");
+            return;
+        }
+        const blob = await res.blob();
+        const cd = res.headers.get("Content-Disposition") || "";
+        const m = cd.match(/filename="?([^"]+)"?/);
+        const name = m ? m[1] : `RRS_backup_${new Date().toISOString().slice(0, 10)}.html`;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+        setBackupStatus("Backup downloaded.", "ok");
+    } catch (e) {
+        setBackupStatus("Could not connect to the API.", "error");
+    } finally {
+        backupExportHtmlBtn.disabled = false;
+        backupExportHtmlBtn.textContent = "Download";
+    }
 }
 
-function buildRestoreBundle() {
-    const arch = window.__RRS_ARCHIVE__;
-    const schedule = window.dashboardData?.scheduleConfig || arch?.schedule || null;
-    const monitorConfig = arch?.monitorConfig
-        || window.dashboardData?.monitorConfig
-        || readBootMonitorConfig()
-        || null;
-    return {
-        format: "rrs-restore-v1",
-        exportedAt: new Date().toISOString(),
-        generatedAt: arch?.exportedAt || null,
-        eventId: stateData?.eventId || arch?.eventId || monitorConfig?.eventId || null,
-        monitorConfig,
-        state: stateData || {},
-        checksRaw: arch?.checksRaw ?? linesToRaw(checkLines),
-        changesRaw: arch?.changesRaw ?? linesToRaw(changesLines),
-        schedule,
-        kanban: kanbanData || arch?.kanban || { cards: {} },
-        labelCatalog: arch?.labelCatalog || kanbanLabelCatalog || null,
-        judgeCatalog: arch?.judgeCatalog || kanbanJudgeCatalog || null,
-        roleCatalog: arch?.roleCatalog || kanbanRoleCatalog || null,
-        userCatalog: arch?.userCatalog || (typeof kanbanUserCatalog !== 'undefined' ? kanbanUserCatalog : null),
-    };
-}
-
-function downloadRestoreBundle() {
-    const bundle = buildRestoreBundle();
-    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    const date = new Date().toISOString().split("T")[0];
-    const event = bundle.eventId || "Event";
-    a.href = url;
-    a.download = `RRS_Restore_${event}_${date}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+// Extrae el bundle `window.__RRS_ARCHIVE__` embebido en un backup .html.
+function extractArchiveBundleFromHtml(text) {
+    const m = text.match(/__RRS_ARCHIVE__\s*=\s*(\{[\s\S]*?\});\s*<\/script>/);
+    if (!m) return null;
+    try {
+        return JSON.parse(m[1].replace(/<\\\/script>/gi, "<\/script>"));
+    } catch {
+        return null;
+    }
 }
 
 async function importRestoreBundle(file) {
     const text = await file.text();
-    let bundle;
-    try {
-        bundle = JSON.parse(text);
-    } catch {
-        setBackupStatus("The file is not valid JSON.", "error");
-        return;
+    let restoreBody = null;
+
+    if (/__RRS_ARCHIVE__\s*=/.test(text)) {
+        // Backup .html: se restauran solo los datos del evento.
+        const a = extractArchiveBundleFromHtml(text);
+        if (!a) {
+            setBackupStatus("Could not read the backup file.", "error");
+            return;
+        }
+        restoreBody = {
+            format: "rrs-restore-v1",
+            state: a.state,
+            checksRaw: a.checksRaw,
+            changesRaw: a.changesRaw,
+            schedule: a.schedule,
+            kanban: { cards: a.kanban?.cards || {} },
+        };
+    } else {
+        // Compatibilidad: paquete JSON "rrs-restore-v1" antiguo.
+        let bundle;
+        try {
+            bundle = JSON.parse(text);
+        } catch {
+            setBackupStatus("The file is not a valid backup (.html or .json).", "error");
+            return;
+        }
+        if (bundle.format !== "rrs-restore-v1") {
+            setBackupStatus("Unrecognized format. Use an RRS backup (.html).", "error");
+            return;
+        }
+        restoreBody = bundle;
     }
-    if (bundle.format !== "rrs-restore-v1") {
-        setBackupStatus("Unrecognized format. Use an RRS Restore v1 package.", "error");
-        return;
-    }
+
     if (!confirm("Restore data from this backup? A copy of the current files will be saved.")) return;
 
     if (backupImportBtn) backupImportBtn.disabled = true;
     setBackupStatus("Restoring…", "info");
     try {
-        const res = await fetch(fetchUrl("api/restore"), {
+        const res = await authFetch("api/restore", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: text,
+            body: JSON.stringify(restoreBody),
         });
         const data = await res.json();
         if (data.ok) {
@@ -2828,11 +2835,15 @@ function handleUserAccountMenuOutsideClick(event) {
 function showArchiveModeUI(data) {
     if (headerLiveChrome) headerLiveChrome.classList.add("hidden");
     if (archiveHeader) archiveHeader.classList.remove("hidden");
-    document.getElementById("stages-card")?.classList.add("hidden");
     document.getElementById("statsCardsGrid")?.classList.add("rrs-stats-grid-archive");
     [cleanupBtn, userAccountWrap].forEach((b) => { if (b) b.style.display = "none"; });
-    document.querySelectorAll(".backup-live-only").forEach((el) => el.classList.add("hidden"));
-    document.querySelectorAll(".backup-archive-only").forEach((el) => el.classList.remove("hidden"));
+    // El Schedule y el Log se revisan en solo lectura: se muestra su tarjeta y el
+    // botón del Log (normalmente `auth-required`). El editor de Schedule se abre
+    // deshabilitado (ver openScheduleEditor).
+    document.getElementById("stagesLogBtn")?.classList.remove("hidden");
+    document.getElementById("stagesBadge")?.classList.remove("hidden");
+    const stagesCardEl = document.getElementById("stages-card");
+    if (stagesCardEl) { stagesCardEl.classList.add("cursor-pointer"); stagesCardEl.title = "View monitor schedule (read-only)"; }
 
     const monitorCfg = data.monitorConfig || window.__RRS_MONITOR_CONFIG__ || {};
     const regattaName =
@@ -3055,6 +3066,7 @@ async function loadFilesAutomatically() {
         updateStats();
         updateCardStyles();
         renderTable();
+        if (typeof renderStages === 'function') renderStages();
         return;
     }
 
@@ -3875,17 +3887,7 @@ if (backupBtn) backupBtn.addEventListener("click", openBackupModal);
 if (backupModalClose) backupModalClose.addEventListener("click", closeBackupModal);
 if (backupModalBackdrop) backupModalBackdrop.addEventListener("click", closeBackupModal);
 
-if (backupExportHtmlBtn) backupExportHtmlBtn.addEventListener("click", () => {
-    backupExportHtmlBtn.disabled = true;
-    backupExportHtmlBtn.textContent = "Generating…";
-    window.location.href = fetchUrl("api/archive");
-    setTimeout(() => {
-        backupExportHtmlBtn.disabled = false;
-        backupExportHtmlBtn.textContent = "Download HTML";
-    }, 3000);
-});
-
-if (backupExportJsonBtn) backupExportJsonBtn.addEventListener("click", downloadRestoreBundle);
+if (backupExportHtmlBtn) backupExportHtmlBtn.addEventListener("click", downloadBackupFile);
 
 if (backupImportBtn && backupImportInput) {
     backupImportBtn.addEventListener("click", () => backupImportInput.click());
@@ -6297,21 +6299,47 @@ window.refreshKanbanAuthState = function refreshKanbanAuthState() {
     return data.schedule;
   }
 
+  function applyScheduleEditorReadonly(on) {
+    const f = form();
+    if (f) f.querySelectorAll('input, select, textarea').forEach((el) => { el.disabled = on; });
+    document.getElementById('scheduleEditorActions')?.classList.toggle('hidden', on);
+    document.getElementById('scheduleEditorReadonlyNote')?.classList.toggle('hidden', !on);
+    if (f) f.querySelectorAll('[data-add-window], [data-remove-window], [data-remove-plan]')
+      .forEach((el) => { el.classList.toggle('hidden', on); });
+  }
+
   async function openScheduleEditor() {
     console.log('[SCHEDULE] Opening editor...');
-    if (typeof window.isAuthenticated === "function" && !window.isAuthenticated()) {
-      console.log('[SCHEDULE] Not authenticated');
-      return;
+    const archive = typeof isArchiveView === 'function' && isArchiveView();
+
+    if (!archive) {
+      if (typeof window.isAuthenticated === "function" && !window.isAuthenticated()) {
+        console.log('[SCHEDULE] Not authenticated');
+        return;
+      }
+      if (typeof isServerMode === 'function' && !isServerMode()) {
+        console.log('[SCHEDULE] Not in server mode');
+        alert('The schedule editor only works via the server URL.');
+        return;
+      }
     }
-    if (typeof isServerMode === 'function' && !isServerMode()) {
-      console.log('[SCHEDULE] Not in server mode');
-      alert('The schedule editor only works via the server URL.');
-      return;
-    }
+
     setStatus('');
     updateScheduleEditorTimeZone();
     modal().classList.remove('hidden');
     document.body.classList.add('overflow-hidden');
+
+    if (archive) {
+      // Solo lectura: se rellena desde el bundle embebido, sin llamar a la API.
+      const schedule = window.__RRS_ARCHIVE__?.schedule
+        || window.dashboardData?.scheduleConfig
+        || { plans: [] };
+      renderEditor(JSON.parse(JSON.stringify(schedule.plans ? schedule : { plans: [] })));
+      applyScheduleEditorReadonly(true);
+      return;
+    }
+
+    applyScheduleEditorReadonly(false);
     try {
       console.log('[SCHEDULE] Fetching schedule...');
       const schedule = await fetchSchedule();

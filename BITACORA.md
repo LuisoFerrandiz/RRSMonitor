@@ -4,6 +4,32 @@
 
 ---
 
+## 2026-09-10 (cont.) — Backup: un único `.html` = visor offline + fuente de restauración
+
+- **Problema**: había dos mecanismos descoordinados. `GET /api/archive` (HTML autocontenido)
+  estaba **roto** (`CONFIG` inexistente en `src/api.js` → 500), era **público** y embebía
+  `users.json` **con contraseñas en claro**. El "Export JSON" (cliente) era el único formato que
+  aceptaba Restore, y su botón estaba oculto. El HTML se veía offline pero no se restauraba.
+- **`src/api.js`**: `buildArchiveHtml()` — fuera el filtrado por flags (un backup es completo;
+  además elimina el crash de `CONFIG`); `userCatalog` sin `password`/`passwordHash`; bundle
+  `version:2` con `eventId`/`eventTitle`/`monitorConfig`/catálogos a nivel raíz; nombre
+  `RRS_<eventId>_<fecha>.html`. `GET /api/archive` ahora **exige login**. `POST /api/restore`:
+  copia previa en `data/backup_<epoch>/` (antes el `confirm` lo prometía y no lo hacía) y
+  `kanban.json` recibe solo `{cards}` (no los catálogos que trae el archivo).
+- **`data/viewer.html`**: modal Backup con 3 tarjetas (Backup file / Restore / New event); fuera
+  "Export JSON" (`buildRestoreBundle`/`downloadRestoreBundle`/`linesToRaw` borradas). La descarga
+  usa `authFetch` + blob (la ruta ya no admite navegación pelada). `importRestoreBundle` acepta
+  `.html`: extrae `window.__RRS_ARCHIVE__` con regex y restaura solo datos del evento (el `.json`
+  `rrs-restore-v1` antiguo sigue funcionando). `showArchiveModeUI`: la tarjeta Schedule y el botón
+  Log dejan de ocultarse; el editor de Schedule se abre en **solo lectura** (`applyScheduleEditorReadonly`)
+  cuando `isArchiveView()`. Bundle con `generatedAt` para el banner; `renderStages()` en la rama
+  de archivo.
+- Verificado con API real (`DATA_DIR` temporal): `/api/archive` 401 sin token / 200 con token,
+  bundle `version:2` sin contraseñas, restore round-trip (backup creado, `state`/`checks`/
+  `changes`/`schedule`/`kanban.cards` restaurados). Navegador (archivo servido por HTTP): modo
+  archivo, Log poblado, Schedule read-only, 0 peticiones externas, 0 errores. Modo normal: modal
+  con 3 tarjetas, funciones nuevas presentes.
+
 ## 2026-09-10 (cont.) — Fecha de tarjeta kanban = fecha de descarga de RRS (inmutable) + alta/orfandad desde el servidor
 
 - **Problema**: `updatedAt` de una tarjeta kanban era un timestamp de acción de usuario — el

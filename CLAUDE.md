@@ -116,6 +116,13 @@ como glob) y reiniciar. `.env.example` es la plantilla.
   modal) la cambia. La columna "Decided" ordena por esa fecha ("By RRS date"). El alta de tarjetas
   nuevas y la marca de orfandad las hace el servidor (`src/kanbanSync.js`, desde `index.js` en cada
   ciclo y desde `GET /api/kanban`); el bootstrap cliente de `viewer.html` solo cubre el tablero vacío.
+- **Backup**: un único `.html` (`GET /api/archive`, **requiere login**) = copia de `viewer.html` +
+  `<script>window.__RRS_ARCHIVE__ = {...}</script>` (bundle sin filtrar por flags, usuarios **sin
+  contraseñas**). Sirve como visor offline (pestañas de datos + kanban + Log + Schedule, todo en
+  solo lectura) **y** como fuente de `POST /api/restore` (el botón Restore extrae el bundle del
+  `.html`). Restore = solo datos del evento (`state.json` / `checks.jsonl` / `changes.jsonl` /
+  tarjetas kanban / `schedule.json`) y hace copia previa en `data/backup_<epoch>/`. `buildArchiveHtml`
+  vivía roto por una `CONFIG` inexistente en `src/api.js` — se quitó el filtrado por flags.
 
 ## `data/` está trackeado parcialmente — cuidado con los commits
 

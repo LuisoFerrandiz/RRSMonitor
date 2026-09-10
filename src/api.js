@@ -271,78 +271,27 @@ function writeEnv(env) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Archive (HTML autocontenido)                                         */
+/* Archive / backup (HTML autocontenido, único fichero)                 */
 /* ------------------------------------------------------------------ */
+//
+// `GET /api/archive` (requiere login) genera UN solo `.html` = copia de
+// `data/viewer.html` (ya autocontenido: Tailwind/Font Awesome inline, sin CDNs)
+// + `<script>window.__RRS_ARCHIVE__ = {...}</script>`. Sirve para dos cosas:
+//   1. abrirlo offline y revisar los datos del evento (modo archivo del dashboard),
+//   2. reimportarlo desde el botón Restore para volver al estado guardado.
+// El bundle lleva TODO el evento sin filtrar por flags (un backup debe ser
+// completo); los usuarios van SIN contraseñas.
 
-function filterStateByEnabledFlags(state) {
-  const filtered = { ...state };
-
-  // Omitir secciones deshabilitadas
-  if (!CONFIG.documentsEnabled) {
-    delete filtered.documentRows;
-    delete filtered.documentRowCount;
-  }
-  if (!CONFIG.questionsEnabled) {
-    delete filtered.questionRows;
-    delete filtered.questionRowCount;
-  }
-  if (!CONFIG.scoringEnquiriesEnabled) {
-    delete filtered.scoringInquiryRows;
-    delete filtered.scoringInquiryRowCount;
-  }
-  if (!CONFIG.onWaterPenaltiesEnabled) {
-    delete filtered.onWaterPenaltyRows;
-    delete filtered.onWaterPenaltyRowCount;
-    delete filtered.penaltyRows; // alias para compatibilidad
-  }
-  if (!CONFIG.penaltyReportsEnabled) {
-    delete filtered.penaltyReportRows;
-    delete filtered.penaltyReportRowCount;
-  }
-  if (!CONFIG.retirementsEnabled) {
-    delete filtered.retirementRows;
-    delete filtered.retirementRowCount;
-  }
-  if (!CONFIG.crewSubstitutionsEnabled) {
-    delete filtered.crewSubstitutionRows;
-    delete filtered.crewSubstitutionRowCount;
-  }
-  if (!CONFIG.equipmentSubstitutionsEnabled) {
-    delete filtered.equipmentSubstitutionRows;
-    delete filtered.equipmentSubstitutionRowCount;
-  }
-
-  // Omitir datos de Trello de secciones deshabilitadas
-  if (!CONFIG.documentsEnabled && filtered.trelloDocumentCards) {
-    delete filtered.trelloDocumentCards;
-  }
-  if (!CONFIG.questionsEnabled && filtered.trelloQuestionCards) {
-    delete filtered.trelloQuestionCards;
-  }
-  if (!CONFIG.scoringEnquiriesEnabled && filtered.trelloScoringInquiryCards) {
-    delete filtered.trelloScoringInquiryCards;
-  }
-
-  return filtered;
+function sanitizeForFileName(value) {
+  return String(value || '').replace(/[^A-Za-z0-9_-]+/g, '').slice(0, 40);
 }
 
-function isEntryEnabledByFlags(entry) {
-  const tipo = entry.tipo || '';
-
-  // Hearings y Decisions siempre incluidos
-  if (tipo === 'Hearing' || tipo === 'Decision') return true;
-
-  // Otros tipos según FLAGS
-  if (tipo === 'Document' && !CONFIG.documentsEnabled) return false;
-  if (tipo === 'Q&A' && !CONFIG.questionsEnabled) return false;
-  if (tipo === 'Scoring Enquiry' && !CONFIG.scoringEnquiriesEnabled) return false;
-  if (tipo === 'Penalty Report' && !CONFIG.penaltyReportsEnabled) return false;
-  if (tipo === 'Retirement' && !CONFIG.retirementsEnabled) return false;
-  if (tipo === 'Crew Substitution' && !CONFIG.crewSubstitutionsEnabled) return false;
-  if (tipo === 'Equipment Substitution' && !CONFIG.equipmentSubstitutionsEnabled) return false;
-  if (tipo === 'On-Water Penalty' && !CONFIG.onWaterPenaltiesEnabled) return false;
-
-  return true;
+function archiveFileName(eventId) {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const id = sanitizeForFileName(eventId);
+  return id ? `RRS_${id}_${stamp}.html` : `RRS_backup_${stamp}.html`;
 }
 
 function buildArchiveHtml() {
@@ -352,44 +301,41 @@ function buildArchiveHtml() {
   const state = readJson(STATE_FILE, {});
   const schedule = readJson(SCHEDULE_FILE, { plans: [] });
   const kanban = readJson(KANBAN_FILE, { cards: {} });
-  const userCatalog = loadUsers();
+  const monitorConfig = normalizeConfig(loadMonitorConfig() || {});
+  const labelCatalog = readJson(KANBAN_LABELS_FILE, { labels: [] });
+  const judgeCatalog = readJson(KANBAN_JUDGES_FILE, { judges: [] });
+  const roleCatalog = readJson(KANBAN_ROLES_FILE, { roles: [] });
 
-  // Filtrar estado según FLAGS habilitados
-  const filteredState = filterStateByEnabledFlags(state.state || state);
+  // Usuarios sin credenciales: el visor solo necesita nombre/rol para los
+  // desplegables de asignación de jueces.
+  const rawUsers = (loadUsers().users || []);
+  const userCatalog = { users: rawUsers.map(({ password, passwordHash, ...u }) => u) };
 
-  // checks.jsonl: líneas planas de contadores, sin `tipo` → no hay nada que filtrar por flags.
-  const checksRaw = readFileSafe(CHECKS_FILE) || '';
-
-  // Filtrar cambios según FLAGS habilitados
-  const changeLines = (readFileSafe(CHANGES_FILE) || '').split('\n').filter(line => {
-    if (!line.trim()) return false;
-    try {
-      const entry = JSON.parse(line);
-      return isEntryEnabledByFlags(entry);
-    } catch {
-      return false;
-    }
-  });
-  const changesRaw = changeLines.join('\n') + (changeLines.length ? '\n' : '');
-
+  const now = new Date().toISOString();
   const archive = {
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    state: filteredState,
-    checksRaw,
-    changesRaw,
+    version: 2,
+    exportedAt: now,
+    generatedAt: now,
+    eventId: monitorConfig.eventId || (state.state || state).eventId || null,
+    eventTitle: monitorConfig.eventTitle || '',
+    monitorConfig,
+    state: state.state || state,
+    checksRaw: readFileSafe(CHECKS_FILE) || '',
+    changesRaw: readFileSafe(CHANGES_FILE) || '',
     schedule,
-    kanban: { cards: kanban.cards || {}, labelCatalog: readJson(KANBAN_LABELS_FILE, { labels: [] }), judgeCatalog: readJson(KANBAN_JUDGES_FILE, { judges: [] }), roleCatalog: readJson(KANBAN_ROLES_FILE, { roles: [] }) },
+    kanban: { cards: kanban.cards || {}, labelCatalog, judgeCatalog, roleCatalog },
+    labelCatalog,
+    judgeCatalog,
+    roleCatalog,
     userCatalog,
   };
 
   const payload = JSON.stringify(archive).replace(/<\/script>/gi, '<\\/script>');
   const snippet = `<script>window.__RRS_ARCHIVE__ = ${payload};</script>`;
 
-  // También marcamos el modo archivo para que el dashboard no llame a la API
-  const injected = viewer.replace(/(<\/head>)/i, `${snippet}\n$1`);
-
-  return injected;
+  // El `<script>` justo antes de `</head>` marca el modo archivo: el dashboard
+  // no llama a la API y renderiza todo desde el bundle embebido.
+  return viewer.replace(/(<\/head>)/i, `${snippet}\n$1`);
 }
 
 /* ------------------------------------------------------------------ */
@@ -766,11 +712,13 @@ const router = {
   },
 
   'GET /api/archive': (req, res) => {
+    const session = requireAuth(req, res);
+    if (!session) return;
     const html = buildArchiveHtml();
     if (!html) {
       return sendJson(res, 500, { ok: false, error: 'viewer.html not found' });
     }
-    const filename = `RRSMonitor_${Date.now()}.html`;
+    const filename = archiveFileName(normalizeConfig(loadMonitorConfig() || {}).eventId);
     res.writeHead(200, {
       'Content-Type': 'text/html; charset=utf-8',
       'Content-Disposition': `attachment; filename="${filename}"`,
@@ -800,6 +748,8 @@ const router = {
     if (body.state === undefined && checksRaw === undefined && changesRaw === undefined && body.events === undefined) {
       return sendJson(res, 400, { ok: false, error: 'Invalid restore bundle' });
     }
+    // Copia de seguridad de los ficheros actuales antes de sobrescribir.
+    writeFileSafe(stateBackupTarget(), currentSnapshot());
     if (body.state !== undefined) writeJson(STATE_FILE, typeof body.state === 'string' ? JSON.parse(body.state) : body.state);
     if (checksRaw !== undefined) {
       const checks = Array.isArray(checksRaw)
@@ -814,7 +764,8 @@ const router = {
       writeFileSafe(CHANGES_FILE, changes);
     }
     if (body.schedule !== undefined && body.schedule.plans) writeJson(SCHEDULE_FILE, body.schedule);
-    if (body.kanban !== undefined) writeJson(KANBAN_FILE, body.kanban);
+    // Solo las tarjetas: los catálogos que trae el archivo no se restauran.
+    if (body.kanban !== undefined) writeJson(KANBAN_FILE, { cards: (body.kanban && body.kanban.cards) || {} });
     if (session.username) logUserActivity(session.username, 'restore');
     sendJson(res, 200, { ok: true });
   },
