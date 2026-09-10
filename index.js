@@ -761,12 +761,14 @@ function countDecidedDecisionRows(decisionRows) {
 
 /**
  * Registra en checks.jsonl una línea por ciclo (siempre). Formato plano con las mismas
- * claves `*RowCount` que consume el dashboard, más `changed` y `decidedDecisionRowCount`.
+ * claves `*RowCount` que consume el dashboard, más `changed`, `decidedDecisionRowCount` y
+ * (en el primer ciclo del evento) `baseline`.
  */
-async function appendCheck(snapshot, changed) {
+async function appendCheck(snapshot, changed, isBaseline) {
   const check = {
     timestamp: snapshot.timestamp,
     changed: Boolean(changed),
+    ...(isBaseline ? { baseline: true } : {}),
     rowCount: snapshot.rowCount || 0,
     decisionRowCount: snapshot.decisionRowCount || 0,
     decidedDecisionRowCount: countDecidedDecisionRows(snapshot.decisionRows),
@@ -3606,7 +3608,7 @@ async function runMonitorCycle() {
     fullDecisionSyncedByCase,
   };
 
-  await appendCheck(snapshot, shouldRecordChanges);
+  await appendCheck(snapshot, shouldRecordChanges, !previousState);
 
   if (!previousState) {
     console.log(

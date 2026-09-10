@@ -1485,6 +1485,9 @@ function buildLogTableColumns(rows, monitorCfg = getMonitorCfg()) {
 }
 
 function renderLogStatusCell(row) {
+    if (row && row.baseline) {
+        return '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-indigo-600">BASELINE</span></td>';
+    }
     return row && row.changed
         ? '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">CHANGED</span></td>'
         : '<td class="px-4 py-3 text-center"><span class="px-2 py-1 rounded-full text-[10px] font-bold bg-sky-100 text-sky-800">OK</span></td>';
@@ -3314,7 +3317,7 @@ function renderHistoryTable() {
     const source = getHistoryLogSource();
     const sortTab = getHistoryLogSortTab();
     const rows = source === "changes"
-        ? checkLines.filter((l) => l.changed)
+        ? checkLines.filter((l) => l.changed || l.baseline)
         : checkLines;
     renderUnifiedLogTable(
         rows.map(mapCheckLineToLogRow),
@@ -3336,8 +3339,9 @@ function countLogDecisions(source) {
 function mapCheckLineToLogRow(line) {
     return {
         dateTime: line.timestamp,
-        origin: line.changed ? "Change" : "Check",
+        origin: line.baseline ? "Baseline" : (line.changed ? "Change" : "Check"),
         changed: !!line.changed,
+        baseline: !!line.baseline,
         rowCount: line.rowCount || 0,
         decisionRowCount: line.decidedDecisionRowCount ?? countLogDecisions(line),
         timeLimitRowCount: line.timeLimitRowCount || 0,
