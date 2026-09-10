@@ -4,6 +4,27 @@
 
 ---
 
+## 2026-09-10 (cont.) — Cirugía de datos del evento viejo + línea base en el Log
+
+- **Cirugía** (manual, con backup en `data/backup_surgery_*`): se quitaron de `checks.jsonl`
+  (99→2) y `changes.jsonl` (48→1) las líneas del evento anterior (Sardinia, mayo-junio) y la
+  línea "sucia" del `2026-09-10T13:22:00` (el diff falso Sardinia→Maxi: `docs +21 −18`,
+  `Q&A ~7 −12`). Quedó solo lo legítimo del evento 13730.
+- Efecto colateral: Q&A / Scoring / Hearings son timelines de cambios sin *fallback* a
+  `state.json` (solo Documents y Decisions lo tienen) → se quedaban vacías.
+- **Solución: línea base** (commit `2a5f3be`):
+  - `index.js`: `appendCheck(..., !previousState)` → escribe `baseline:true` en el primer
+    ciclo del evento. Con el reset por cambio de `RRS_EVENT_ID`, cada evento nuevo arranca
+    con fila BASELINE.
+  - Inyectada a mano (una vez, desde `state.json`) una línea `baseline:true` en `checks.jsonl`
+    y otra en `changes.jsonl` fechadas `13:22:00` con todo el inventario actual como "added"
+    (retirement=0, apareció a las 13:45), sin `removed`.
+  - `data/viewer.html`: la fila baseline se muestra como Origin "Baseline" + badge "BASELINE"
+    (indigo); el filtro "Changes only" la incluye (`l.changed || l.baseline`).
+- Verificado en navegador: Log "Changes only" = 2 filas (`13:45` CHANGED + `13:22` BASELINE);
+  Q&A 7 filas, Scoring 1, Documents 21, Hearings 9 Decisions — todo desde la baseline. Sin
+  errores de consola.
+
 ## 2026-09-10 (cont.) — Reset automático al cambiar `RRS_EVENT_ID` + Log por defecto solo cambios
 
 - **Log por defecto = "Changes only"** (commit `86ceea8`): `#filterSource` arranca mostrando
