@@ -610,13 +610,9 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     <i class="fas fa-calculator rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-scoring-line">Scoring inquiries (0/0)</div>
                 </div>
-                <div id="crew-substitutions-row" onclick="switchTab('crewSubstitutions')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
+                <div id="crew-substitutions-row" onclick="switchTab('crewSubstitutions')" class="rrs-card-line flex items-center space-x-2 cursor-pointer">
                     <i class="fas fa-users rrs-icon-accent text-base"></i>
-                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-crew-substitutions-line">Crew Substitutions (0)</div>
-                </div>
-                <div id="equipment-substitutions-row" onclick="switchTab('equipmentSubstitutions')" class="rrs-card-line flex items-center space-x-2 cursor-pointer">
-                    <i class="fas fa-toolbox rrs-icon-primary text-base"></i>
-                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-equipment-substitutions-line">Equipment Substitutions (0)</div>
+                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-crew-substitutions-line">Equip &amp; Crew Substitution (0)</div>
                 </div>
             </div>
 
@@ -1732,8 +1728,7 @@ function firstEnabledDashboardTab(monitorCfg = {}) {
         { tab: "scoring", enabled: cfg.scoringEnquiriesEnabled !== false },
         { tab: "penalties", enabled: cfg.penaltiesEnabled !== false },
         { tab: "penaltyReports", enabled: cfg.penaltyReportsEnabled !== false || cfg.retirementsEnabled !== false },
-        { tab: "crewSubstitutions", enabled: cfg.crewSubstitutionsEnabled !== false },
-        { tab: "equipmentSubstitutions", enabled: cfg.equipmentSubstitutionsEnabled !== false },
+        { tab: "crewSubstitutions", enabled: cfg.crewSubstitutionsEnabled !== false || cfg.equipmentSubstitutionsEnabled !== false },
     ];
     return infoTabs.find((item) => item.enabled)?.tab || "hearings";
 }
@@ -1747,15 +1742,16 @@ function applyFeatureVisibility(monitorCfg = {}) {
         { key: "scoringEnquiriesEnabled", rowId: "scoring-row", tab: "scoring" },
         { key: "penaltiesEnabled", rowId: "penalties-row", tab: "penalties" },
         { key: "__penaltyOrRetirement", rowId: "penalty-reports-row", tab: "penaltyReports" },
-        { key: "crewSubstitutionsEnabled", rowId: "crew-substitutions-row", tab: "crewSubstitutions" },
-        { key: "equipmentSubstitutionsEnabled", rowId: "equipment-substitutions-row", tab: "equipmentSubstitutions" },
+        { key: "__crewOrEquipment", rowId: "crew-substitutions-row", tab: "crewSubstitutions" },
     ];
 
     let anyVisible = isArchiveView();
     features.forEach(({ key, rowId, tab }) => {
-        // Pestaña fusionada: visible si Penalty Reports O Retirements están activos.
+        // Pestañas fusionadas: visibles si CUALQUIERA de sus dos secciones está activa.
         const enabled = key === "__penaltyOrRetirement"
             ? (isMonitorFeatureEnabled("penaltyReportsEnabled", monitorCfg) || isMonitorFeatureEnabled("retirementsEnabled", monitorCfg))
+            : key === "__crewOrEquipment"
+            ? (isMonitorFeatureEnabled("crewSubstitutionsEnabled", monitorCfg) || isMonitorFeatureEnabled("equipmentSubstitutionsEnabled", monitorCfg))
             : isMonitorFeatureEnabled(key, monitorCfg);
         document.getElementById(rowId)?.classList.toggle("hidden", !enabled);
         if (enabled) anyVisible = true;
@@ -3168,8 +3164,9 @@ function updateStats() {
     const penRptCount = (stateData.penaltyReportRows || []).length;
     const retCount = (stateData.retirementRows || []).length;
     setT('stat-penalty-reports-line', `RET & Penalty Report (${penRptCount + retCount})`);
-    setT('stat-crew-substitutions-line', `Crew Substitutions (${(stateData.crewSubstitutionRows || []).length})`);
-    setT('stat-equipment-substitutions-line', `Equipment Substitutions (${(stateData.equipmentSubstitutionRows || []).length})`);
+    const crewCount = (stateData.crewSubstitutionRows || []).length;
+    const equipCount = (stateData.equipmentSubstitutionRows || []).length;
+    setT('stat-crew-substitutions-line', `Equip & Crew Substitution (${crewCount + equipCount})`);
     applyFeatureVisibility(window.dashboardData?.monitorConfig);
     if (currentTab === "sailtiResults") renderSailtiResultsEmbed();
     
@@ -3292,7 +3289,6 @@ function updateCardStyles() {
         { tabs: ['penalties'], selector: '#penalties-row' },
         { tabs: ['penaltyReports'], selector: '#penalty-reports-row' },
         { tabs: ['crewSubstitutions'], selector: '#crew-substitutions-row' },
-        { tabs: ['equipmentSubstitutions'], selector: '#equipment-substitutions-row' },
         { tabs: ['qa'], selector: '#qa-row' },
         { tabs: ['scoring'], selector: '#scoring-row' },
     ];
@@ -3314,6 +3310,7 @@ function updateLogButtonActive() {
 
 function switchTab(tab) {
     if (tab === "retirements") tab = "penaltyReports"; // pestaña fusionada; id antiguo compat
+    if (tab === "equipmentSubstitutions") tab = "crewSubstitutions"; // pestaña fusionada; id antiguo compat
     if (tab === "history" && !authUser && !isArchiveView()) return;
     currentTab = tab;
     updateKanbanPanelVisibility();
@@ -3350,7 +3347,6 @@ function renderTable() {
     else if (currentTab === 'penalties') renderPenaltiesTable();
     else if (currentTab === 'penaltyReports') renderPenaltyReportsTable();
     else if (currentTab === 'crewSubstitutions') renderCrewSubmissionsTable();
-    else if (currentTab === 'equipmentSubstitutions') renderEquipmentSubmissionsTable();
     else if (currentTab === 'qa') renderQaTable();
     else if (currentTab === 'scoring') renderScoringTable();
 }
@@ -3694,19 +3690,35 @@ function renderPenaltyReportsTable() {
 }
 
 function renderCrewSubmissionsTable() {
+    // Pestaña fusionada "Equip & Crew Substitution": columnas de crew substitutions;
+    // las filas de equipment se normalizan a ese shape (oldEquip -> OLD, newEquip -> NEW,
+    // sin competitor). Los dos toggles de Configuration siguen siendo independientes.
     const cols = [
         { label: 'NO', width: 'col-xs', sortKey: 'no' },
         { label: 'BOAT', width: 'col-sm', sortKey: 'boat' },
         { label: 'COMPETITOR', width: 'col-lg', sortKey: 'competitor' },
         { label: 'DATE', width: 'col-sm', sortKey: 'date' },
-        { label: 'PREVIOUS CREW', width: 'col-md', sortKey: 'previousCrew' },
-        { label: 'NEW CREW', width: 'col-md', sortKey: 'newCrew' },
+        { label: 'OLD', width: 'col-md', sortKey: 'previousCrew' },
+        { label: 'NEW', width: 'col-md', sortKey: 'newCrew' },
         { label: 'STATUS', width: 'col-sm', sortKey: 'status' },
     ];
     tableHead.innerHTML = buildTableHead(cols, 'crewSubstitutions');
 
+    const equipRows = equipmentSubstitutionRows().map((r) => ({
+        no: r.no,
+        boat: r.boat,
+        competitor: "",
+        date: r.date,
+        previousCrew: r.oldEquip,
+        newCrew: r.newEquip,
+        status: r.status,
+        pdfUrl: r.pdfUrl,
+        _kind: "equipment",
+    }));
+    const allRows = [...crewSubstitutionRows(), ...equipRows];
+
     const search = searchInput?.value?.trim() || "";
-    let rows = crewSubstitutionRows().filter((row) =>
+    let rows = allRows.filter((row) =>
         matchesSearch([
             row.no,
             row.boat,
@@ -3734,12 +3746,13 @@ function renderCrewSubmissionsTable() {
     );
 
     if (!rows.length) {
-        setEmptyState("No crew substitutions", cols.length);
+        setEmptyState("No crew or equipment substitutions", cols.length);
         return;
     }
 
     tableBody.innerHTML = rows.map((row) => {
-        const downloadHtml = downloadLinkHtml(row.pdfUrl, `crew-${row.no}`);
+        const dlName = row._kind === "equipment" ? `equipment-${row.no}` : `crew-${row.no}`;
+        const downloadHtml = downloadLinkHtml(row.pdfUrl, dlName);
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
@@ -3748,56 +3761,6 @@ function renderCrewSubmissionsTable() {
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.previousCrew, "px-4 py-3 text-sm", row.previousCrew)}
             ${cell(row.newCrew, "px-4 py-3 text-sm", row.newCrew)}
-            <td class="px-4 py-3 text-sm">${escapeHtml(row.status || "-")}${downloadHtml}</td>
-        </tr>
-    `;
-    }).join('');
-}
-
-function renderEquipmentSubmissionsTable() {
-    const cols = [
-        { label: 'NO', width: 'col-xs', sortKey: 'no' },
-        { label: 'BOAT', width: 'col-lg', sortKey: 'boat' },
-        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
-        { label: 'OLD EQUIP.', width: 'col-md', sortKey: 'oldEquip' },
-        { label: 'NEW EQUIP.', width: 'col-md', sortKey: 'newEquip' },
-        { label: 'STATUS', width: 'col-sm', sortKey: 'status' },
-    ];
-    tableHead.innerHTML = buildTableHead(cols, 'equipmentSubstitutions');
-
-    const search = searchInput?.value?.trim() || "";
-    let rows = equipmentSubstitutionRows().filter((row) =>
-        matchesSearch([row.no, row.boat, row.date, row.oldEquip, row.newEquip, row.status], search)
-    );
-
-    rows = sortItems(
-        rows,
-        'equipmentSubstitutions',
-        {
-            no: (r) => r.no,
-            boat: (r) => r.boat,
-            date: (r) => r.date,
-            oldEquip: (r) => r.oldEquip,
-            newEquip: (r) => r.newEquip,
-            status: (r) => r.status,
-        },
-        { no: 'number', date: 'date' }
-    );
-
-    if (!rows.length) {
-        setEmptyState("No equipment substitutions", cols.length);
-        return;
-    }
-
-    tableBody.innerHTML = rows.map((row) => {
-        const downloadHtml = downloadLinkHtml(row.pdfUrl, `equipment-${row.no}`);
-        return `
-        <tr class="hover:bg-gray-50">
-            ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
-            ${cell(row.boat, "px-4 py-3 text-sm font-medium", row.boat)}
-            ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
-            ${cell(row.oldEquip, "px-4 py-3 text-sm", row.oldEquip)}
-            ${cell(row.newEquip, "px-4 py-3 text-sm", row.newEquip)}
             <td class="px-4 py-3 text-sm">${escapeHtml(row.status || "-")}${downloadHtml}</td>
         </tr>
     `;

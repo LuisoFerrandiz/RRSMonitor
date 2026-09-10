@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-09-10 (cont.) — Fusión de pestañas "Crew Substitutions" + "Equipment Substitutions"
+
+- Mismo patrón que el merge Penalty/Retirement (`d341d73`). Solo `data/viewer.html`, sin backend.
+- **Tarjeta 2**: una sola fila `Equip & Crew Substitution (N)` (N = nº crew subs + nº equip subs),
+  icono `fa-users`. Se elimina `#equipment-substitutions-row` / `#stat-equipment-substitutions-line`.
+  Se conserva el `tab` id `crewSubstitutions`, `#crew-substitutions-row` y
+  `#stat-crew-substitutions-line`.
+- **Renderer** `renderCrewSubmissionsTable()` reescrito: 7 columnas de crew, con dos cabeceras
+  renombradas `PREVIOUS CREW → OLD` y `NEW CREW → NEW` (los `sortKey` internos `previousCrew`/
+  `newCrew` no cambian). Filas de equipment normalizadas al shape de crew:
+  `oldEquip→OLD`, `newEquip→NEW`, `status→STATUS`, `competitor=""` (`-`). Descarga:
+  `equipment-<no>` vs `crew-<no>` por `_kind`. Empty: "No crew or equipment substitutions".
+- **`renderEquipmentSubmissionsTable()` borrada**; quitado su dispatch en `renderTable()`.
+- **Shim**: `switchTab('equipmentSubstitutions')` → `crewSubstitutions`.
+- `firstEnabledDashboardTab` y `applyFeatureVisibility` (`__crewOrEquipment`), `updateStats`,
+  `updateCardStyles` `lineMap`: dos entradas → una. Visible si `crewSubstitutionsEnabled` **o**
+  `equipmentSubstitutionsEnabled`.
+- **NO tocado**: `CONFIG_TOGGLE_DEFS` (siguen los dos toggles `CREWCHANGES` /
+  `EQUIPMENTSUBSTITUTIONS`), columnas del Log ("Crew Subs" / "Equip Subs" separadas),
+  `index.js`, `src/api.js`, `.env`.
+- **Verificado en navegador** (servidor estático + Chrome, datos sembrados): label "(4)", sin
+  `#equipment-substitutions-row`, 7 columnas con `OLD`/`NEW`, filas de equipment con `-` en
+  COMPETITOR y `oldEquip`/`newEquip`/`status` en su sitio, orden por todas las columnas (mezcla
+  crew+equip), búsqueda de texto de `newEquip` filtra la fila de equipment, escenarios de toggle
+  (solo crew / solo equip / ambos off → fila oculta + redirect a `documents`), shim del id
+  antiguo. 0 errores de consola. Los 4 bloques `<script>` parsean; `node --check` de
+  `index.js`/`src/api.js` OK.
+
 ## 2026-09-10 (cont.) — Fase 3 optimización: fuera Tailwind Play CDN + Font Awesome CDN
 
 - **Objetivo**: `data/viewer.html` cargaba `cdn.tailwindcss.com` (script ~300 KB que además
