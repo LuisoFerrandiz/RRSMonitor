@@ -1110,6 +1110,10 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
 let historyLines = [];
 let changesLines = [];
 let cleanupArchiveLines = [];
+// Estado de la última descarga de cleanup-archive.jsonl (servidor): si no dio 200 lo marcamos
+// para poder distinguir "archivo vacío" de "archivo no servido / 404" en la pestaña Log.
+let cleanupArchiveUnavailable = false;
+let cleanupArchiveStatus = 0;
 let stateData = {};
 let currentTab = 'kanban';
 const tableSortByTab = {
@@ -2989,6 +2993,8 @@ async function loadFilesAutomatically() {
         historyLines = data.historyRaw ? parse(data.historyRaw) : (data.history || []);
         changesLines = data.changesRaw ? parse(data.changesRaw) : (data.changes || []);
         cleanupArchiveLines = data.cleanupArchiveRaw ? parse(data.cleanupArchiveRaw) : [];
+        cleanupArchiveUnavailable = false;
+        cleanupArchiveStatus = 0;
         stateData = data.state || {};
         const scheduleFromArchive = data.schedule?.plans?.length ? data.schedule : null;
         window.dashboardData = { scheduleConfig: scheduleFromArchive || stateData.scheduleConfig || null };
@@ -3049,12 +3055,17 @@ async function loadFilesAutomatically() {
             return;
         }
 
-        const [hText, cText, archiveText, cfgJson] = await Promise.all([
+        const [hText, cText, archiveInfo, cfgJson] = await Promise.all([
             dashboardFetch(`history.jsonl`).then((r) => (r?.ok ? r.text() : "")),
             dashboardFetch(`changes.jsonl`).then((r) => (r?.ok ? r.text() : "")),
-            dashboardFetch(`cleanup-archive.jsonl`).then((r) => (r?.ok ? r.text() : "")),
+            dashboardFetch(`cleanup-archive.jsonl`).then(async (r) => ({
+                ok: !!(r && r.ok),
+                status: r ? r.status : 0,
+                text: r?.ok ? await r.text() : "",
+            })),
             loadMonitorConfig(mode),
         ]);
+        const archiveText = archiveInfo.text;
 
         const parseLines = (txt) => (txt || "").trim().split('\n')
             .filter(l => l.trim() && !l.startsWith('<!DOCTYPE'))
@@ -3064,6 +3075,8 @@ async function loadFilesAutomatically() {
         historyLines = parseLines(hText);
         changesLines = parseLines(cText);
         cleanupArchiveLines = parseLines(archiveText);
+        cleanupArchiveUnavailable = !archiveInfo.ok;
+        cleanupArchiveStatus = archiveInfo.status;
         stateData = sJson || {};
         const scheduleConfig = await resolveScheduleConfig(stateData, mode);
         window.dashboardData = { monitorConfig: cfgJson, scheduleConfig };
@@ -3190,6 +3203,13 @@ function renderTrackingEmbed() {
     }
 }
 
+function cleanupArchiveEmptyMessage() {
+    if (!cleanupArchiveUnavailable) return "Empty cleanup archive";
+    return cleanupArchiveStatus
+        ? `Cleanup archive not available on the server (HTTP ${cleanupArchiveStatus})`
+        : "Cleanup archive could not be loaded (offline or network error)";
+}
+
 function getHistoryLogSource() {
     const value = filterSource?.value || "all";
     if (value === "cleanup") return "cleanup";
@@ -3295,7 +3315,7 @@ function renderHistoryTable() {
     if (source === "cleanup") {
         renderUnifiedLogTable(
             cleanupArchiveLines.map(mapCleanupArchiveToLogRow),
-            { emptyMessage: "Empty cleanup archive", sortTab }
+            { emptyMessage: cleanupArchiveEmptyMessage(), sortTab }
         );
         return;
     }

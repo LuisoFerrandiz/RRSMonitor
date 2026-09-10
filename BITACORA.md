@@ -26,6 +26,23 @@
   "CleanUp History" → "Cleanup archive". `value` y nombre de fichero intactos. `All` y
   `History` sin cambios.
 
+## 2026-09-10 — Log: distinguir "Cleanup archive vacío" de "no servido / 404"
+
+- Depuración del bug pendiente "Cleanup archive no muestra nada". El path de render está
+  **verificado OK** sobre datos reales: `parseLines` + `mapCleanupArchiveToLogRow` sobre el
+  `data/cleanup-archive.jsonl` real (44 líneas) → 44 filas con `dateTime` y contadores correctos.
+  El fallo del usuario NO está en el visor: su navegador recibe un no-200 para
+  `cleanup-archive.jsonl` (fichero no desplegado/sincronizado, o `viewer.html` cacheado).
+- Antes: si `dashboardFetch('cleanup-archive.jsonl')` no daba 200 → `r?.ok ? text : ""` →
+  `parseLines("")` → `[]` → mensaje "Empty cleanup archive" **idéntico** al de archivo vacío real.
+- Ahora: `loadFilesAutomatically` captura `{ok,status}` de esa descarga →
+  `cleanupArchiveUnavailable` / `cleanupArchiveStatus`. `cleanupArchiveEmptyMessage()` muestra
+  "Cleanup archive not available on the server (HTTP 404)" o "...could not be loaded (offline or
+  network error)" en vez de "Empty cleanup archive". Archive view (HTML offline) resetea el flag.
+- Verificado: 4 bloques `<script>` parsean; test de lógica de los 4 escenarios (presente /
+  404 / vacío presente / offline). Falta comprobación en navegador (extensión Chrome
+  desconectada esta sesión).
+
 ## 2026-09-09 (cont.) — Kanban: ojo "vista mínima" a nivel de columna DECIDED
 
 - Botón "ojo" en la cabecera de la columna DECIDED (junto al control de orden), idéntico al de
