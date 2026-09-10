@@ -5380,7 +5380,7 @@ async function kanbanSaveData(nextData) {
     kanbanData = nextData;
     return;
   }
-  const res = await fetch("/api/kanban", {
+  const res = await authFetch("api/kanban", {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(nextData),
@@ -5602,7 +5602,7 @@ async function createKanbanLabelFromManager() {
   const bg = document.getElementById("kanbanNewLabelColor")?.value || "";
   const color = kanbanContrastTextColor(bg);
   try {
-    const res = await fetch("/api/kanban-labels", {
+    const res = await authFetch("api/kanban-labels", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name, bg, color }),
@@ -5631,7 +5631,7 @@ async function deleteKanbanLabelFromManager(labelId) {
     return;
   }
   try {
-    const res = await fetch(`/api/kanban-labels?id=${encodeURIComponent(labelId)}`, {
+    const res = await authFetch(`api/kanban-labels?id=${encodeURIComponent(labelId)}`, {
       method: "DELETE",
     });
     const data = await res.json().catch(() => ({}));
@@ -5709,7 +5709,7 @@ async function createKanbanJudgeFromManager() {
   const btn = document.getElementById("kanbanCreateJudgeBtn");
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch("/api/kanban-judges", {
+    const res = await authFetch("api/kanban-judges", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name }),
@@ -5720,6 +5720,7 @@ async function createKanbanJudgeFromManager() {
     document.getElementById("kanbanNewJudgeName").value = "";
     renderKanbanJudgesManagerList();
     renderKanbanBoard();
+    kanbanRefreshOpenDetailJudges();
     setKanbanJudgesManagerStatus("Judge created", true);
   } catch (e) {
     setKanbanJudgesManagerStatus(e.message, false);
@@ -5735,7 +5736,7 @@ async function deleteKanbanJudgeFromManager(judgeId) {
     return;
   }
   try {
-    const res = await fetch(`/api/kanban-judges?id=${encodeURIComponent(judgeId)}`, {
+    const res = await authFetch(`api/kanban-judges?id=${encodeURIComponent(judgeId)}`, {
       method: "DELETE",
     });
     const data = await res.json().catch(() => ({}));
@@ -5744,6 +5745,7 @@ async function deleteKanbanJudgeFromManager(judgeId) {
     await loadKanbanData();
     renderKanbanJudgesManagerList();
     renderKanbanBoard();
+    kanbanRefreshOpenDetailJudges();
     setKanbanJudgesManagerStatus("Judge deleted", true);
   } catch (e) {
     setKanbanJudgesManagerStatus(e.message, false);
@@ -5830,7 +5832,7 @@ async function createKanbanRoleFromManager() {
   const btn = document.getElementById("kanbanCreateRoleBtn");
   if (btn) btn.disabled = true;
   try {
-    const res = await fetch("/api/kanban-roles", {
+    const res = await authFetch("api/kanban-roles", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label, badgeStyle }),
@@ -5857,7 +5859,7 @@ async function deleteKanbanRoleFromManager(roleId) {
     return;
   }
   try {
-    const res = await fetch(`/api/kanban-roles?id=${encodeURIComponent(roleId)}`, {
+    const res = await authFetch(`api/kanban-roles?id=${encodeURIComponent(roleId)}`, {
       method: "DELETE",
     });
     const data = await res.json().catch(() => ({}));

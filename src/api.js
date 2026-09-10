@@ -547,8 +547,13 @@ const router = {
     sendJson(res, 200, { ok: true });
   },
 
+  // Los catálogos de kanban (labels / judges / roles) se devuelven SIEMPRE con doble
+  // forma: los items al nivel raíz (`labels` / `judges` / `roles`, para el fallback
+  // estático de viewer.html) y envueltos en `<x>Catalog` (lo que espera el cliente
+  // tras un alta/baja). Así una sola respuesta sirve a todas las rutas de lectura.
   'GET /api/kanban-labels': (req, res) => {
-    sendJson(res, 200, readJson(KANBAN_LABELS_FILE, { labels: [] }));
+    const store = readJson(KANBAN_LABELS_FILE, { labels: [] });
+    sendJson(res, 200, { labels: store.labels || [], labelCatalog: { labels: store.labels || [] } });
   },
 
   'POST /api/kanban-labels': async (req, res) => {
@@ -559,12 +564,14 @@ const router = {
     const label = {
       id: body.id || `lbl_${Date.now()}`,
       name: body.name || '',
-      color: body.color || '#64748b',
+      // el cliente pinta `label.bg` como fondo y `label.color` como texto
+      bg: body.bg || body.color || '#e2e8f0',
+      color: body.color || '#334155',
     };
     store.labels = store.labels || [];
     store.labels.push(label);
     writeJson(KANBAN_LABELS_FILE, store);
-    sendJson(res, 200, { ok: true, label });
+    sendJson(res, 200, { ok: true, label, labels: store.labels, labelCatalog: { labels: store.labels } });
   },
 
   'DELETE /api/kanban-labels': (req, res) => {
@@ -572,13 +579,14 @@ const router = {
     if (!session) return;
     const id = decodeURIComponent(String(req.url.split('id=')[1] || '').split('&')[0] || '');
     const store = readJson(KANBAN_LABELS_FILE, { labels: [] });
-    store.labels = (store.labels || []).filter((l) => String(l.id) !== id);
+    store.labels = (store.labels || []).filter((l) => String(l.id) !== id || l.system);
     writeJson(KANBAN_LABELS_FILE, store);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, labels: store.labels, labelCatalog: { labels: store.labels } });
   },
 
   'GET /api/kanban-judges': (req, res) => {
-    sendJson(res, 200, readJson(KANBAN_JUDGES_FILE, { judges: [] }));
+    const store = readJson(KANBAN_JUDGES_FILE, { judges: [] });
+    sendJson(res, 200, { judges: store.judges || [], judgeCatalog: { judges: store.judges || [] } });
   },
 
   'POST /api/kanban-judges': async (req, res) => {
@@ -590,7 +598,7 @@ const router = {
     store.judges = store.judges || [];
     store.judges.push(judge);
     writeJson(KANBAN_JUDGES_FILE, store);
-    sendJson(res, 200, { ok: true, judge });
+    sendJson(res, 200, { ok: true, judge, judges: store.judges, judgeCatalog: { judges: store.judges } });
   },
 
   'DELETE /api/kanban-judges': (req, res) => {
@@ -600,11 +608,12 @@ const router = {
     const store = readJson(KANBAN_JUDGES_FILE, { judges: [] });
     store.judges = (store.judges || []).filter((j) => String(j.id) !== id);
     writeJson(KANBAN_JUDGES_FILE, store);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, judges: store.judges, judgeCatalog: { judges: store.judges } });
   },
 
   'GET /api/kanban-roles': (req, res) => {
-    sendJson(res, 200, readJson(KANBAN_ROLES_FILE, { roles: [] }));
+    const store = readJson(KANBAN_ROLES_FILE, { roles: [] });
+    sendJson(res, 200, { roles: store.roles || [], roleCatalog: { roles: store.roles || [] } });
   },
 
   'POST /api/kanban-roles': async (req, res) => {
@@ -612,11 +621,17 @@ const router = {
     if (!session) return;
     const body = await readBody(req);
     const store = readJson(KANBAN_ROLES_FILE, { roles: [] });
-    const role = { id: body.id || `role_${Date.now()}`, name: body.name || '' };
+    // el cliente manda `label` + `badgeStyle` ("core" | "alt") y los pinta tal cual
+    const label = String(body.label || body.name || '').trim();
+    const role = {
+      id: body.id || `role_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || Date.now()}`,
+      label: label || 'Judge',
+      badgeStyle: body.badgeStyle === 'core' ? 'core' : 'alt',
+    };
     store.roles = store.roles || [];
     store.roles.push(role);
     writeJson(KANBAN_ROLES_FILE, store);
-    sendJson(res, 200, { ok: true, role });
+    sendJson(res, 200, { ok: true, role, roles: store.roles, roleCatalog: { roles: store.roles } });
   },
 
   'DELETE /api/kanban-roles': (req, res) => {
@@ -624,9 +639,10 @@ const router = {
     if (!session) return;
     const id = decodeURIComponent(String(req.url.split('id=')[1] || '').split('&')[0] || '');
     const store = readJson(KANBAN_ROLES_FILE, { roles: [] });
-    store.roles = (store.roles || []).filter((r) => String(r.id) !== id);
+    // los roles del sistema no se pueden borrar
+    store.roles = (store.roles || []).filter((r) => String(r.id) !== id || r.system);
     writeJson(KANBAN_ROLES_FILE, store);
-    sendJson(res, 200, { ok: true });
+    sendJson(res, 200, { ok: true, roles: store.roles, roleCatalog: { roles: store.roles } });
   },
 
   'GET /api/schedule': (req, res) => {

@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-09-10 (cont.) — Kanban: los jueces/roles/labels no se guardaban (401 + contrato roto)
+
+- **Síntoma**: al abrir una tarjeta se podían elegir jueces, pero no se guardaban ni
+  aparecían en la tarjeta. Igual con los roles (chairman/scribe/observer…) y las labels.
+- **Causa 1 — falta de auth**: `kanbanSaveData` (`PUT /api/kanban`) y los 6 POST/DELETE de
+  los gestores de labels/judges/roles usaban `fetch()` pelado, sin cabecera
+  `Authorization: Bearer`. El servidor exige `requireAuth` → **401** → no se guardaba nada
+  (ni tarjetas, ni movimientos de columna desde el modal). Toda la persistencia del kanban
+  pasa por `kanbanSaveData`.
+- **Causa 2 — respuesta sin catálogo**: el cliente lee `data.judgeCatalog` /
+  `data.roleCatalog` / `data.labelCatalog` tras un alta; el servidor devolvía solo
+  `{ ok, judge|role|label }`. El catálogo en memoria no se refrescaba: el juez recién
+  creado no salía en el desplegable hasta recargar la página.
+- **Causa 3 — campos descartados**: `POST /api/kanban-roles` guardaba `{id, name}` y
+  perdía `label` + `badgeStyle` (el cliente pinta `role.label`); `POST /api/kanban-labels`
+  perdía `bg` (el cliente pinta `label.bg`).
+- **Causa 4 — envoltorio GET**: `GET /api/kanban-{labels,judges,roles}` devolvían el store
+  crudo; `kanbanFetch*Catalog` espera `{ <x>Catalog: {…} }`.
+- **`src/api.js`**: los GET devuelven doble forma (items a nivel raíz + `<x>Catalog`); los
+  POST persisten todos los campos del cliente y responden con el store completo; los DELETE
+  también; los roles/labels del sistema (`system:true`) no se pueden borrar.
+- **`data/viewer.html`**: los 7 `fetch` de escritura del kanban pasan a `authFetch`;
+  `kanbanRefreshOpenDetailJudges()` tras crear/borrar juez.
+- Verificado: roundtrip con API real (`DATA_DIR` temporal) + navegador con sesión iniciada
+  — alta de juez/rol/label, asignación a tarjeta, guardado, recarga desde servidor y badge
+  con nombre + rol. `PUT /api/kanban` sin token → 401. Las 9 tarjetas intactas.
+
 ## 2026-09-10 (cont.) — PENDIENTE: backup 500 en producción, sin desplegar
 
 - Tras el commit `48ad7a5`, el dashboard sigue dando HTTP 500 al pulsar Backup.
