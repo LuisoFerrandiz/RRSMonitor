@@ -553,11 +553,7 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 </div>
                 <div id="penalty-reports-row" onclick="switchTab('penaltyReports')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-file-lines rrs-icon-accent text-base"></i>
-                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-penalty-reports-line">Penalty Reports (0)</div>
-                </div>
-                <div id="retirements-row" onclick="switchTab('retirements')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
-                    <i class="fas fa-person-walking rrs-icon-accent text-base"></i>
-                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-retirements-line">Retirements (0)</div>
+                    <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-penalty-reports-line">RET &amp; Penalty Report (0)</div>
                 </div>
                 <div id="scoring-row" onclick="switchTab('scoring')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-calculator rrs-icon-accent text-base"></i>
@@ -1684,8 +1680,7 @@ function firstEnabledDashboardTab(monitorCfg = {}) {
         { tab: "qa", enabled: cfg.questionsEnabled !== false },
         { tab: "scoring", enabled: cfg.scoringEnquiriesEnabled !== false },
         { tab: "penalties", enabled: cfg.penaltiesEnabled !== false },
-        { tab: "penaltyReports", enabled: cfg.penaltyReportsEnabled !== false },
-        { tab: "retirements", enabled: cfg.retirementsEnabled !== false },
+        { tab: "penaltyReports", enabled: cfg.penaltyReportsEnabled !== false || cfg.retirementsEnabled !== false },
         { tab: "crewSubstitutions", enabled: cfg.crewSubstitutionsEnabled !== false },
         { tab: "equipmentSubstitutions", enabled: cfg.equipmentSubstitutionsEnabled !== false },
     ];
@@ -1700,15 +1695,17 @@ function applyFeatureVisibility(monitorCfg = {}) {
         { key: "questionsEnabled", rowId: "qa-row", tab: "qa" },
         { key: "scoringEnquiriesEnabled", rowId: "scoring-row", tab: "scoring" },
         { key: "penaltiesEnabled", rowId: "penalties-row", tab: "penalties" },
-        { key: "penaltyReportsEnabled", rowId: "penalty-reports-row", tab: "penaltyReports" },
-        { key: "retirementsEnabled", rowId: "retirements-row", tab: "retirements" },
+        { key: "__penaltyOrRetirement", rowId: "penalty-reports-row", tab: "penaltyReports" },
         { key: "crewSubstitutionsEnabled", rowId: "crew-substitutions-row", tab: "crewSubstitutions" },
         { key: "equipmentSubstitutionsEnabled", rowId: "equipment-substitutions-row", tab: "equipmentSubstitutions" },
     ];
 
     let anyVisible = isArchiveView();
     features.forEach(({ key, rowId, tab }) => {
-        const enabled = isMonitorFeatureEnabled(key, monitorCfg);
+        // Pestaña fusionada: visible si Penalty Reports O Retirements están activos.
+        const enabled = key === "__penaltyOrRetirement"
+            ? (isMonitorFeatureEnabled("penaltyReportsEnabled", monitorCfg) || isMonitorFeatureEnabled("retirementsEnabled", monitorCfg))
+            : isMonitorFeatureEnabled(key, monitorCfg);
         document.getElementById(rowId)?.classList.toggle("hidden", !enabled);
         if (enabled) anyVisible = true;
         if (!enabled && currentTab === tab) {
@@ -3117,11 +3114,9 @@ function updateStats() {
     setT('stat-sailti-results-line', 'Results');
     setT('stat-tracking-line', 'Tracking');
     setT('stat-penalties-line', `On the water penalties (${(stateData.onWaterPenaltyRows || stateData.penaltyRows || []).length})`);
-    setT('stat-penalty-reports-line', `Penalty Reports (${(stateData.penaltyReportRows || []).length})`);
-    const retirementCount = (stateData.retirementRows || []).length;
-    if (retirementCount > 0 || isMonitorFeatureEnabled("retirementsEnabled")) {
-      setT('stat-retirements-line', `Retirements (${retirementCount})`);
-    }
+    const penRptCount = (stateData.penaltyReportRows || []).length;
+    const retCount = (stateData.retirementRows || []).length;
+    setT('stat-penalty-reports-line', `RET & Penalty Report (${penRptCount + retCount})`);
     setT('stat-crew-substitutions-line', `Crew Substitutions (${(stateData.crewSubstitutionRows || []).length})`);
     setT('stat-equipment-substitutions-line', `Equipment Substitutions (${(stateData.equipmentSubstitutionRows || []).length})`);
     applyFeatureVisibility(window.dashboardData?.monitorConfig);
@@ -3267,6 +3262,7 @@ function updateLogButtonActive() {
 }
 
 function switchTab(tab) {
+    if (tab === "retirements") tab = "penaltyReports"; // pestaña fusionada; id antiguo compat
     if (tab === "history" && !authUser && !isArchiveView()) return;
     currentTab = tab;
     updateKanbanPanelVisibility();
@@ -3302,7 +3298,6 @@ function renderTable() {
     else if (currentTab === 'documents') renderDocumentsTable();
     else if (currentTab === 'penalties') renderPenaltiesTable();
     else if (currentTab === 'penaltyReports') renderPenaltyReportsTable();
-    else if (currentTab === 'retirements') renderRetirementssTable();
     else if (currentTab === 'crewSubstitutions') renderCrewSubmissionsTable();
     else if (currentTab === 'equipmentSubstitutions') renderEquipmentSubmissionsTable();
     else if (currentTab === 'qa') renderQaTable();
@@ -3569,6 +3564,9 @@ function renderPenaltiesTable() {
     `).join('');
 }
 
+// Pestaña fusionada "RET & Penalty Report": columnas de Penalty Reports + las filas de
+// Retirements normalizadas a ese shape (su `type` va a PENALTY TAKEN, `raceNo` a RACE;
+// LEG y BOATS FOULED quedan vacías). Sin marca visual de origen.
 function renderPenaltyReportsTable() {
     const cols = [
         { label: 'NO', width: 'col-xs', sortKey: 'no' },
@@ -3581,8 +3579,21 @@ function renderPenaltyReportsTable() {
     ];
     tableHead.innerHTML = buildTableHead(cols, 'penaltyReports');
 
+    const retNormalized = retirementRows().map((r) => ({
+        no: r.no,
+        date: r.date,
+        race: r.raceNo,
+        leg: "",
+        boat: r.boat,
+        boatsFouled: "",
+        penaltyTaken: r.type,
+        actionsPdfUrl: r.actionsPdfUrl,
+        _kind: "retirement",
+    }));
+    const allRows = [...penaltyReportRows(), ...retNormalized];
+
     const search = searchInput?.value?.trim() || "";
-    let rows = penaltyReportRows().filter((row) =>
+    let rows = allRows.filter((row) =>
         matchesSearch([
             row.no,
             row.date,
@@ -3610,12 +3621,13 @@ function renderPenaltyReportsTable() {
     );
 
     if (!rows.length) {
-        setEmptyState("No penalty reports", cols.length);
+        setEmptyState("No penalty reports or retirements", cols.length);
         return;
     }
 
     tableBody.innerHTML = rows.map((row) => {
-        const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, `penalty-report-${row.no}`);
+        const dlName = row._kind === "retirement" ? `retirement-${row.no}` : `penalty-report-${row.no}`;
+        const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, dlName);
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
@@ -3625,59 +3637,6 @@ function renderPenaltyReportsTable() {
             ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
             ${cell(row.boatsFouled, "px-4 py-3 text-sm")}
             ${cell(row.penaltyTaken, "px-4 py-3 text-sm")}${downloadHtml}
-        </tr>
-    `;
-    }).join('');
-}
-
-function renderRetirementssTable() {
-    const cols = [
-        { label: 'NO', width: 'col-xs', sortKey: 'no' },
-        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
-        { label: 'BOAT', width: 'col-md', sortKey: 'boat' },
-        { label: 'TYPE', width: 'col-sm', sortKey: 'type' },
-        { label: 'RACE NO', width: 'col-xs', sortKey: 'raceNo' },
-    ];
-    tableHead.innerHTML = buildTableHead(cols, 'retirements');
-
-    const search = searchInput?.value?.trim() || "";
-    let rows = retirementRows().filter((row) =>
-        matchesSearch([
-            row.no,
-            row.date,
-            row.boat,
-            row.type,
-            row.raceNo,
-        ], search)
-    );
-
-    rows = sortItems(
-        rows,
-        'retirements',
-        {
-            no: (r) => r.no,
-            date: (r) => r.date,
-            boat: (r) => r.boat,
-            type: (r) => r.type,
-            raceNo: (r) => r.raceNo,
-        },
-        { no: 'number', raceNo: 'number' }
-    );
-
-    if (!rows.length) {
-        setEmptyState("No retirements", cols.length);
-        return;
-    }
-
-    tableBody.innerHTML = rows.map((row) => {
-        const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, `retirement-${row.no}`);
-        return `
-        <tr class="hover:bg-gray-50">
-            ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
-            ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
-            ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
-            ${cell(row.type, "px-4 py-3 text-sm")}
-            ${cell(row.raceNo, "px-4 py-3 text-sm text-center")}${downloadHtml}
         </tr>
     `;
     }).join('');

@@ -26,6 +26,27 @@
   "CleanUp History" → "Cleanup archive". `value` y nombre de fichero intactos. `All` y
   `History` sin cambios.
 
+## 2026-09-10 (cont.) — Fusión de pestañas "Penalty Reports" + "Retirements"
+
+Solo `data/viewer.html` (backend intacto). Ahora hay **una** entrada en la tarjeta 2,
+`RET & Penalty Report (N)` (N = suma de ambos recuentos), que abre una sola pestaña.
+
+- Tarjeta 2: eliminada `#retirements-row`; `#penalty-reports-row` relabelado.
+- `renderPenaltyReportsTable()` reescrita: usa las 7 columnas de Penalty Reports y añade las
+  filas de `retirementRows()` normalizadas (`type`→PENALTY TAKEN, `raceNo`→RACE, LEG y BOATS
+  FOULED vacías `-`). Sin marca visual de origen. Empty state "No penalty reports or retirements".
+- `renderRetirementssTable()` eliminada; quitada su rama en `renderTable()`.
+- `switchTab()`: shim `if (tab === "retirements") tab = "penaltyReports"` (compat id viejo).
+- `firstEnabledDashboardTab()` / `applyFeatureVisibility()`: una sola entrada, visible si
+  `penaltyReportsEnabled || retirementsEnabled`; oculta y redirige solo si ambos off.
+- `updateStats()`: label con recuento combinado.
+- **Sin tocar**: `CONFIG_MAIN_TOGGLES` (siguen los 2 toggles → `REPORTPENALTIES`/`RETIREMENTS`),
+  columnas del Log (siguen separadas), `index.js`, `src/api.js`.
+- Verificado en navegador: label "(5)", 7 columnas, filas de retirement con type en PENALTY
+  TAKEN y `-` en LEG/BOATS FOULED, ordenación asc/desc por todas las columnas, búsqueda "RET",
+  toggles (PR off→solo retirements, RET off→solo PR, ambos off→fila oculta + redirect), compat
+  `switchTab('retirements')`. 4 bloques `<script>` parsean. Sin errores de consola.
+
 ## 2026-09-10 — Log: distinguir "Cleanup archive vacío" de "no servido / 404"
 
 - Depuración del bug pendiente "Cleanup archive no muestra nada". El path de render está
