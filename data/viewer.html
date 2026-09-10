@@ -653,8 +653,8 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 </div>
                 <div id="filterSourceWrap" class="hidden">
                     <select id="filterSource" class="rrs-input px-4 py-2 rounded-lg border bg-white" style="border-color: var(--rrs-border); background: var(--rrs-surface);">
-                        <option value="all" selected>All checks</option>
-                        <option value="changes">Only changes</option>
+                        <option value="changes" selected>Changes only</option>
+                        <option value="all">All checks</option>
                     </select>
                 </div>
             </div>
@@ -3217,7 +3217,9 @@ function renderTrackingEmbed() {
 }
 
 function getHistoryLogSource() {
-    return filterSource?.value === "changes" ? "changes" : "all";
+    // Por defecto el Log muestra solo los ciclos CON cambios; "all" (todas las revisiones,
+    // haya cambios o no) solo si el usuario lo selecciona en #filterSource.
+    return filterSource?.value === "all" ? "all" : "changes";
 }
 
 function getHistoryLogSortTab() {
