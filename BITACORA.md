@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-09-11 (cont.) — Tiempos límite manuales, junto a los de RRS
+
+- Nuevo botón "Manual time limit" en la pestaña Time Limit (junto al buscador),
+  solo visible para admin (`canManageUsers()`). Abre el mismo `#kanbanDetailModal`
+  de siempre en modo "nueva" con una tarjeta borrador `cardType:"time_limit"`.
+- Clave `` `tl:manual:${Date.now()}` `` — nunca coincide con la clave de RRS
+  (`tl:<date>||<boatClass>`), así que una manual y una de RRS con la misma fecha+
+  clase **coexisten** como tarjetas separadas. Campo nuevo `source:"manual"`.
+- `saveKanbanCardFromModal` valida fecha/hora con `kanbanParseDateKey`/
+  `kanbanParseLimitTime` antes de crear — si no parsean, error inline y no guarda
+  (si no, la purga automática del countdown la borraría en el siguiente render).
+- Nuevo botón "Delete" en el pie del modal, solo para tarjetas `time_limit` con
+  `source:"manual"` y solo admin — las de RRS no se borran a mano, solo expiran.
+- `renderTimeLimitsTable()` fusiona `stateData.timeLimitRows` (RRS) con las
+  tarjetas `time_limit`/`source:"manual"` de `kanbanData.cards`; las manuales
+  llevan badge "Manual" y son clicables (admin) para editar; las de RRS igual que
+  siempre, solo lectura.
+- **Sin cambios en `index.js`, `src/kanbanSync.js` ni `src/api.js`** — todo vive
+  en `data/viewer.html`, reutilizando `PUT /api/kanban` tal cual. No hace falta
+  redeploy del contenedor, solo Syncthing + hard refresh.
+- Verificado en navegador (API real + `DATA_DIR` temporal): crear manual con la
+  misma fecha+clase que una tarjeta RRS existente → ambas coexisten en tabla y
+  kanban; editar notas; borrar; validación rechaza fecha/hora no parseable sin
+  cerrar el modal; botón y borrado ocultos sin sesión de admin. 0 errores de consola.
+
 ## 2026-09-11 — Backup 500 resuelto en producción (sin SSH, solo Portainer)
 
 - El fichero `/app/src/api.js` dentro del contenedor **ya tenía el código nuevo**

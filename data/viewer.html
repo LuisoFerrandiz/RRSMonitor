@@ -402,6 +402,12 @@
             border: 1px solid var(--rrs-inactive-border);
             white-space: nowrap;
         }
+        .kanban-card-manual-badge {
+            background: var(--rrs-accent-soft);
+            color: var(--rrs-primary-vivid);
+            border: 1px solid var(--rrs-primary-vivid);
+            white-space: nowrap;
+        }
         .kanban-decided-sort { position: relative; }
         .kanban-decided-sort-panel {
             position: absolute;
@@ -665,6 +671,12 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         <option value="all">All checks</option>
                     </select>
                 </div>
+                <div id="manualTimeLimitAddWrap" class="hidden">
+                    <button type="button" id="manualTimeLimitAddBtn" onclick="openManualTimeLimitCreateModal()"
+                        class="rrs-btn-primary px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap">
+                        <i class="fas fa-plus mr-1.5"></i>Manual time limit
+                    </button>
+                </div>
             </div>
 
             <!-- Table Container -->
@@ -805,6 +817,7 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 <p id="kanbanDetailStatus" class="hidden text-xs text-center"></p>
             </div>
             <div class="px-5 py-3 border-t flex justify-end gap-2" style="border-color: var(--rrs-border);">
+                <button id="kanbanDetailDelete" type="button" class="hidden rrs-btn px-4 py-2 text-sm rounded-lg mr-auto" style="color: #b91c1c;">Delete</button>
                 <button id="kanbanDetailCancel" type="button" class="rrs-btn px-4 py-2 text-sm rounded-lg">Close</button>
                 <button id="kanbanDetailSave" type="button" class="rrs-btn-primary px-4 py-2 text-sm rounded-lg font-medium">Save</button>
             </div>
@@ -2698,6 +2711,7 @@ function updateLoginButtonUI() {
     }
     userMenuManageUsersBtn?.classList.toggle("hidden", !authCanManageUsers);
     updateAuthProtectedUI();
+    if (typeof updateKanbanPanelVisibility === "function") updateKanbanPanelVisibility();
 }
 
 function updateAuthProtectedUI() {
@@ -3202,6 +3216,8 @@ function updateKanbanPanelVisibility() {
     document.getElementById("sailtiResultsPanel")?.classList.toggle("hidden", !isSailtiResults);
     document.getElementById("trackingPanel")?.classList.toggle("hidden", !isTracking);
     document.getElementById("filterSourceWrap")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking || currentTab !== "history");
+    const canAddManualTimeLimit = currentTab === "timelimits" && !isArchiveView() && typeof window.canManageUsers === "function" && window.canManageUsers();
+    document.getElementById("manualTimeLimitAddWrap")?.classList.toggle("hidden", !canAddManualTimeLimit);
     if (searchInput) {
         searchInput.placeholder = currentTab === "history" ? "Search log..." : "Search...";
     }
@@ -3447,8 +3463,15 @@ function renderTimeLimitsTable() {
     ];
     tableHead.innerHTML = buildTableHead(cols, 'timelimits');
 
+    // RRS + manuales admin fusionados: los manuales viven como tarjetas kanban
+    // `cardType:"time_limit"`/`source:"manual"`, así que reciben el mismo
+    // tratamiento (cuenta atrás, purga al expirar) sin duplicar almacenamiento.
+    const manualRows = Object.values(kanbanData.cards || {})
+        .filter((c) => c && c.cardType === "time_limit" && c.source === "manual")
+        .map((c) => ({ date: c.date, boatClass: c.boatClass, limitTime: c.limitTime, manual: true, caseKey: c.caseKey }));
+
     const search = searchInput?.value?.trim() || "";
-    let rows = (stateData.timeLimitRows || []).filter((row) =>
+    let rows = [...(stateData.timeLimitRows || []), ...manualRows].filter((row) =>
         matchesSearch([row.date, row.boatClass, row.limitTime], search)
     );
 
@@ -3468,13 +3491,20 @@ function renderTimeLimitsTable() {
         return;
     }
 
-    tableBody.innerHTML = rows.map((row) => `
-        <tr class="hover:bg-gray-50">
+    const canEditManual = typeof window.canManageUsers === "function" && window.canManageUsers();
+    tableBody.innerHTML = rows.map((row) => {
+        const manualBadge = row.manual
+            ? ` <span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase align-middle">Manual</span>`
+            : "";
+        const clickable = row.manual && canEditManual;
+        return `
+        <tr class="hover:bg-gray-50${clickable ? " cursor-pointer" : ""}"${clickable ? ` onclick="openKanbanDetailModal('${kanbanEscapeHtml(row.caseKey)}')"` : ""}>
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.boatClass, "px-4 py-3 text-sm font-medium")}
-            ${cell(row.limitTime, "px-4 py-3 text-sm font-semibold")}
+            <td class="px-4 py-3 text-sm font-semibold">${kanbanEscapeHtml(row.limitTime || "")}${manualBadge}</td>
         </tr>
-    `).join('');
+    `;
+    }).join('');
 }
 
 function renderPenaltiesTable() {
@@ -4544,10 +4574,14 @@ function kanbanRenderTimeLimitCardFace(card) {
   }
   const notes = String(card.notes || "").trim();
   const notesPreview = kanbanCardBodyText(notes, 80, card);
+  const manualBadge = card.source === "manual"
+    ? `<span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Manual</span>`
+    : "";
 
   return `
     <article class="kanban-tl-card kanban-card rrs-card rounded-lg p-4 shadow-sm shrink-0 min-w-[260px] max-w-[360px] cursor-pointer${card.timedOut ? " opacity-75" : ""}"
       data-case-key="${kanbanEscapeHtml(card.caseKey)}">
+      ${manualBadge ? `<div class="mb-2">${manualBadge}</div>` : ""}
       <div class="space-y-2" style="color: var(--rrs-text);">${rows.join("")}</div>
       ${fields.has("notes") && notesPreview ? `<div class="mt-3 pt-3 border-t text-lg whitespace-pre-wrap break-words" style="border-color: var(--rrs-border); color: var(--rrs-text);" title="${kanbanEscapeHtml(notes)}"><span class="font-semibold" style="color: var(--rrs-muted);">Notes:</span> ${kanbanEscapeHtml(notesPreview)}</div>` : ""}
     </article>`;
@@ -5151,12 +5185,11 @@ function setKanbanDetailEditMode(editable) {
   document.getElementById("kanbanDetailMinimalToggle")?.classList.toggle("hidden", !editable && !kanbanIsArchiveView());
 }
 
-function openKanbanDetailModal(caseKey) {
-  const card = kanbanData.cards?.[caseKey];
+function kanbanPopulateDetailModal(card, caseKey, options = {}) {
   const modal = document.getElementById("kanbanDetailModal");
   if (!card || !modal) return;
 
-  document.getElementById("kanbanDetailTitle").textContent = kanbanCaseLabel(card);
+  document.getElementById("kanbanDetailTitle").textContent = options.title || kanbanCaseLabel(card);
   document.getElementById("kanbanDetailColumn").value = card.column || "hearing_request";
   document.getElementById("kanbanDetailInitiator").value = card.initiator || "";
   document.getElementById("kanbanDetailRespondent").value = card.respondent || "";
@@ -5173,16 +5206,87 @@ function openKanbanDetailModal(caseKey) {
   document.getElementById("kanbanDetailNotes").value = card.notes || "";
   updateKanbanDetailFieldVisibility(card.column || "hearing_request", card);
   updateKanbanDetailMinimalToggle(card);
-  setKanbanDetailEditMode(kanbanCanEdit());
+  setKanbanDetailEditMode(options.forceEditable || kanbanCanEdit());
+  updateKanbanDetailDeleteButton(card, options);
   setKanbanDetailStatus("");
   modal.dataset.caseKey = caseKey;
+  modal.dataset.isNewManualTl = options.isNewManualTimeLimit ? "1" : "";
   modal.classList.remove("hidden");
+}
+
+function openKanbanDetailModal(caseKey) {
+  const card = kanbanData.cards?.[caseKey];
+  if (!card) return;
+  kanbanPopulateDetailModal(card, caseKey);
+}
+
+// Botón "Manual time limit" (pestaña Time Limit, solo admin): abre el mismo modal
+// de detalle con una tarjeta borrador `time_limit`/`source:"manual"` que todavía no
+// existe en kanbanData.cards — saveKanbanCardFromModal la inserta al guardar.
+function openManualTimeLimitCreateModal() {
+  if (typeof window.canManageUsers !== "function" || !window.canManageUsers()) return;
+  const eventId = window.dashboardData?.monitorConfig?.eventId || stateData?.eventId || null;
+  const caseKey = `tl:manual:${Date.now()}`;
+  const draft = {
+    cardType: "time_limit",
+    caseKey,
+    caseNo: "",
+    column: "time_limit",
+    date: "",
+    boatClass: "",
+    limitTime: "",
+    timedOut: false,
+    notes: "",
+    eventId,
+    updatedAt: new Date().toISOString(),
+    source: "manual",
+  };
+  kanbanPopulateDetailModal(draft, caseKey, {
+    title: "New manual time limit",
+    forceEditable: true,
+    isNewManualTimeLimit: true,
+  });
 }
 
 function closeKanbanDetailModal() {
   kanbanCloseLabelsDropdown();
   const modal = document.getElementById("kanbanDetailModal");
   if (modal) modal.classList.add("hidden");
+}
+
+// El botón Delete del modal solo existe para tiempos límite manuales (los de RRS
+// no se borran a mano, solo expiran solos) y solo lo ve un admin.
+function updateKanbanDetailDeleteButton(card, options = {}) {
+  const btn = document.getElementById("kanbanDetailDelete");
+  if (!btn) return;
+  const isManualTimeLimit = !options.isNewManualTimeLimit && kanbanIsTimeLimitCard(card) && card?.source === "manual";
+  const canDelete = isManualTimeLimit && typeof window.canManageUsers === "function" && window.canManageUsers();
+  btn.classList.toggle("hidden", !canDelete);
+}
+
+async function deleteManualTimeLimitCard() {
+  const modal = document.getElementById("kanbanDetailModal");
+  const caseKey = modal?.dataset.caseKey;
+  const card = kanbanData.cards?.[caseKey];
+  if (!caseKey || !card || card.source !== "manual") return;
+  if (!confirm("Delete this manual time limit?")) return;
+
+  const nextCards = { ...kanbanData.cards };
+  delete nextCards[caseKey];
+
+  const btn = document.getElementById("kanbanDetailDelete");
+  if (btn) btn.disabled = true;
+  try {
+    await kanbanSaveData({ cards: nextCards });
+    closeKanbanDetailModal();
+    renderKanbanBoard();
+    if (currentTab === "timelimits") renderTimeLimitsTable();
+  } catch (e) {
+    console.error("[Kanban] Error al borrar tiempo límite manual:", e.message);
+    setKanbanDetailStatus(`Delete failed: ${e.message}`, false);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 function kanbanApiFetch(path, options = {}) {
@@ -5460,9 +5564,59 @@ async function kanbanMoveCard(caseKey, columnId) {
 }
 
 async function saveKanbanCardFromModal() {
-  if (!kanbanCanEdit()) return;
   const modal = document.getElementById("kanbanDetailModal");
   const caseKey = modal?.dataset.caseKey;
+  const isNewManualTl = modal?.dataset.isNewManualTl === "1";
+
+  if (isNewManualTl) {
+    if (typeof window.canManageUsers !== "function" || !window.canManageUsers()) return;
+    const date = kanbanFieldValue("kanbanDetailDate");
+    const boatClass = kanbanFieldValue("kanbanDetailBoatClass");
+    const limitTime = kanbanFieldValue("kanbanDetailLimitTime");
+    if (!boatClass) {
+      setKanbanDetailStatus("Class is required.", false);
+      return;
+    }
+    if (!kanbanParseDateKey(date)) {
+      setKanbanDetailStatus("Date must be YYYY-MM-DD (or M/D/YY).", false);
+      return;
+    }
+    if (!kanbanParseLimitTime(limitTime)) {
+      setKanbanDetailStatus("Time limit must be H:MM or H:MM AM/PM.", false);
+      return;
+    }
+    const draft = {
+      cardType: "time_limit",
+      caseKey,
+      caseNo: "",
+      column: "time_limit",
+      date,
+      boatClass,
+      limitTime,
+      timedOut: false,
+      notes: kanbanFieldValue("kanbanDetailNotes"),
+      eventId: window.dashboardData?.monitorConfig?.eventId || stateData?.eventId || null,
+      updatedAt: new Date().toISOString(),
+      source: "manual",
+    };
+    const saveBtn = document.getElementById("kanbanDetailSave");
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      await kanbanSaveData({ cards: { ...kanbanData.cards, [caseKey]: draft } });
+      closeKanbanDetailModal();
+      renderKanbanBoard();
+      if (currentTab === "timelimits") renderTimeLimitsTable();
+      if (typeof updateKanbanStat === "function") updateKanbanStat();
+    } catch (e) {
+      console.error("[Kanban] Save failed:", e.message);
+      setKanbanDetailStatus(`Save failed: ${e.message}`, false);
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
+    return;
+  }
+
+  if (!kanbanCanEdit()) return;
   const card = kanbanData.cards?.[caseKey];
   if (!card) return;
 
@@ -5512,6 +5666,7 @@ async function saveKanbanCardFromModal() {
     });
     closeKanbanDetailModal();
     renderKanbanBoard();
+    if (currentTab === "timelimits") renderTimeLimitsTable();
     if (typeof updateKanbanStat === "function") updateKanbanStat();
   } catch (e) {
     console.error("[Kanban] Save failed:", e.message);
@@ -6110,6 +6265,7 @@ function initKanbanBoardUi() {
   document.getElementById("kanbanDetailBackdrop")?.addEventListener("click", closeKanbanDetailModal);
   document.getElementById("kanbanDetailCancel")?.addEventListener("click", closeKanbanDetailModal);
   document.getElementById("kanbanDetailSave")?.addEventListener("click", saveKanbanCardFromModal);
+  document.getElementById("kanbanDetailDelete")?.addEventListener("click", deleteManualTimeLimitCard);
   document.getElementById("kanbanDetailMinimalToggle")?.addEventListener("click", (e) => {
     e.stopPropagation();
     toggleKanbanMinimalView();

@@ -116,6 +116,18 @@ como glob) y reiniciar. `.env.example` es la plantilla.
   modal) la cambia. La columna "Decided" ordena por esa fecha ("By RRS date"). El alta de tarjetas
   nuevas y la marca de orfandad las hace el servidor (`src/kanbanSync.js`, desde `index.js` en cada
   ciclo y desde `GET /api/kanban`); el bootstrap cliente de `viewer.html` solo cubre el tablero vacío.
+- **Tiempos límite manuales**: además de los que scrapea RRS (`state.timeLimitRows`),
+  un admin puede crear tiempos límite manuales desde la pestaña Time Limit (botón
+  "Manual time limit", solo visible con `canManageUsers()`). Viven como tarjetas
+  kanban normales (`cardType:"time_limit"`, `source:"manual"`, clave
+  `tl:manual:<ts>` — nunca choca con la clave `tl:<date>||<boatClass>` de RRS, así
+  que una manual y una de RRS con la misma fecha+clase **coexisten**). Reciben el
+  mismo tratamiento que las de RRS: cuenta atrás, purga automática al expirar
+  (`kanbanPurgeExpiredTimeLimitCards`) — por eso se valida fecha/hora parseables
+  antes de guardar. Editables y borrables solo por admin (botón Delete en el modal);
+  las de RRS no se borran a mano, solo expiran. `syncKanbanCards` no las toca (es
+  aditivo y nunca orfana tarjetas `time_limit`) — sin cambios en `index.js` ni
+  `src/api.js`, todo vive en `data/viewer.html`.
 - **Backup**: un único `.html` (`GET /api/archive`, **requiere login**) = copia de `viewer.html` +
   `<script>window.__RRS_ARCHIVE__ = {...}</script>` (bundle sin filtrar por flags, usuarios **sin
   contraseñas**). Sirve como visor offline (pestañas de datos + kanban + Log + Schedule, todo en
