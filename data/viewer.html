@@ -252,14 +252,6 @@
         .rrs-archive-header:not(:has(#archiveEventTitle:not(.hidden))) {
             justify-content: center;
         }
-        #statsCardsGrid.rrs-stats-grid-archive {
-            grid-template-columns: repeat(1, minmax(0, 1fr));
-        }
-        @media (min-width: 640px) {
-            #statsCardsGrid.rrs-stats-grid-archive {
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }
-        }
         .rrs-log-btn {
             border: none;
             transition: background 0.2s, color 0.2s, box-shadow 0.2s;
@@ -424,6 +416,7 @@
             white-space: nowrap;
         }
         .kanban-tl-card--compact { min-width: 130px; max-width: 188px; }
+        .kanban-tl-countdown--timeout { background: #d1f2df !important; color: #1f8a4d !important; }
         .kanban-decided-sort { position: relative; }
         .kanban-decided-sort-panel {
             position: absolute;
@@ -2862,7 +2855,6 @@ function handleUserAccountMenuOutsideClick(event) {
 function showArchiveModeUI(data) {
     if (headerLiveChrome) headerLiveChrome.classList.add("hidden");
     if (archiveHeader) archiveHeader.classList.remove("hidden");
-    document.getElementById("statsCardsGrid")?.classList.add("rrs-stats-grid-archive");
     [cleanupBtn, userAccountWrap].forEach((b) => { if (b) b.style.display = "none"; });
     // El Schedule y el Log se revisan en solo lectura: se muestra su tarjeta y el
     // botón del Log (normalmente `auth-required`). El editor de Schedule se abre
@@ -3093,7 +3085,8 @@ async function loadFilesAutomatically() {
         updateStats();
         updateCardStyles();
         renderTable();
-        if (typeof renderStages === 'function') renderStages();
+        const stagesListEl = document.getElementById('stages-list');
+        if (stagesListEl) stagesListEl.innerHTML = '';
         return;
     }
 
@@ -4207,6 +4200,7 @@ function kanbanUpdateCountdownBadges() {
     if (minutes == null) return;
     if (minutes <= 0) {
       el.classList.remove("hidden");
+      el.classList.add("kanban-tl-countdown--timeout");
       el.textContent = "TimeOut";
       const caseKey = article.dataset.caseKey;
       if (
@@ -4222,6 +4216,7 @@ function kanbanUpdateCountdownBadges() {
       return;
     }
     el.classList.remove("hidden");
+    el.classList.remove("kanban-tl-countdown--timeout");
     el.textContent = `${minutes} MIN`;
   });
 }
@@ -4569,20 +4564,22 @@ function kanbanRenderTimeLimitCardFace(card) {
   const fields = kanbanVisibleFieldsForColumn("time_limit");
   const rows = [];
   if (fields.has("boatClass")) {
-    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Class:</span> ${kanbanEscapeHtml(card.boatClass || "—")}</div>`);
+    rows.push(`<div class="text-sm leading-snug">${kanbanEscapeHtml(card.boatClass || "—")}</div>`);
   }
   if (fields.has("date")) {
-    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Date:</span> ${kanbanEscapeHtml(card.date || "—")}</div>`);
+    rows.push(`<div class="text-sm leading-snug">${kanbanEscapeHtml(card.date || "—")}</div>`);
   }
   if (fields.has("limitTime")) {
     const limitLabel = kanbanEscapeHtml(card.limitTime || "—");
     const timedOutFlag = card.timedOut ? "1" : "0";
     const initialMin = kanbanMinutesUntilLimit(card.date, card.limitTime, card.timedOut);
     const countdownHidden = initialMin == null ? " hidden" : "";
-    const countdownText = initialMin == null ? "" : (initialMin <= 0 ? "TimeOut" : `${initialMin} MIN`);
-    rows.push(`<div class="text-sm leading-snug flex flex-wrap items-center gap-2">
-      <span><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Time limit:</span> ${limitLabel}</span>
-      <span class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-badge kanban-tl-countdown${countdownHidden}"
+    const isTimedOut = initialMin != null && initialMin <= 0;
+    const countdownText = initialMin == null ? "" : (isTimedOut ? "TimeOut" : `${initialMin} MIN`);
+    const countdownTimeoutClass = isTimedOut ? " kanban-tl-countdown--timeout" : "";
+    rows.push(`<div class="text-sm leading-snug flex flex-wrap items-center gap-2" style="position: relative; top: -2px;">
+      <span><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Time limit:</span> <span class="font-bold">${limitLabel}</span></span>
+      <span class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-badge kanban-tl-countdown${countdownTimeoutClass}${countdownHidden}"
         data-tl-date="${kanbanEscapeHtml(card.date || "")}"
         data-tl-limit="${kanbanEscapeHtml(card.limitTime || "")}"
         data-tl-timed-out="${timedOutFlag}">${countdownText}</span>
