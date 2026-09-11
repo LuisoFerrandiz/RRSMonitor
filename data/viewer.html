@@ -408,6 +408,7 @@
             border: 1px solid var(--rrs-primary-vivid);
             white-space: nowrap;
         }
+        .kanban-tl-card--compact { min-width: 200px; max-width: 290px; }
         .kanban-decided-sort { position: relative; }
         .kanban-decided-sort-panel {
             position: absolute;
@@ -671,12 +672,6 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                         <option value="all">All checks</option>
                     </select>
                 </div>
-                <div id="manualTimeLimitAddWrap" class="hidden">
-                    <button type="button" id="manualTimeLimitAddBtn" onclick="openManualTimeLimitCreateModal()"
-                        class="rrs-btn rrs-kanban-btn px-4 py-1.5 rounded-lg flex items-center shadow-sm text-sm font-bold whitespace-nowrap">
-                        <i class="fas fa-clock mr-1.5 rrs-icon-accent text-base"></i>Manual time limit
-                    </button>
-                </div>
             </div>
 
             <!-- Table Container -->
@@ -699,6 +694,9 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
             <!-- Kanban Board -->
             <div id="kanbanPanel" class="hidden">
                 <div class="px-6 pt-4 pb-2 flex justify-end gap-2">
+                    <button id="manualTimeLimitAddBtn" type="button" class="hidden rrs-btn px-3 py-1.5 rounded-lg text-sm" onclick="openManualTimeLimitCreateModal()">
+                        <i class="fas fa-clock mr-1.5 rrs-icon-accent"></i>Manual time limit
+                    </button>
                     <button id="kanbanManageLabelsBtn" type="button" class="auth-required hidden rrs-btn px-3 py-1.5 rounded-lg text-sm">
                         <i class="fas fa-tags mr-1.5 rrs-icon-accent"></i>Manage Labels
                     </button>
@@ -710,7 +708,7 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                     </button>
                 </div>
                 <div id="kanbanToolbar" class="hidden px-6 pt-2 pb-4 border-b" style="background: var(--rrs-accent-soft); border-color: var(--rrs-border);">
-                    <div id="kanbanTimeLimitStrip" class="flex flex-row flex-nowrap gap-3 overflow-x-auto custom-scrollbar w-full"></div>
+                    <div id="kanbanTimeLimitStrip" class="flex flex-row flex-nowrap gap-2 overflow-x-auto custom-scrollbar w-full"></div>
                 </div>
                 <div class="p-6">
                     <div id="kanbanBoard" class="gap-4"></div>
@@ -3216,8 +3214,8 @@ function updateKanbanPanelVisibility() {
     document.getElementById("sailtiResultsPanel")?.classList.toggle("hidden", !isSailtiResults);
     document.getElementById("trackingPanel")?.classList.toggle("hidden", !isTracking);
     document.getElementById("filterSourceWrap")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking || currentTab !== "history");
-    const canAddManualTimeLimit = currentTab === "timelimits" && !isArchiveView() && typeof window.canManageUsers === "function" && window.canManageUsers();
-    document.getElementById("manualTimeLimitAddWrap")?.classList.toggle("hidden", !canAddManualTimeLimit);
+    const canAddManualTimeLimit = isKanban && !isArchiveView() && typeof window.canManageUsers === "function" && window.canManageUsers();
+    document.getElementById("manualTimeLimitAddBtn")?.classList.toggle("hidden", !canAddManualTimeLimit);
     if (searchInput) {
         searchInput.placeholder = currentTab === "history" ? "Search log..." : "Search...";
     }
@@ -4556,10 +4554,10 @@ function kanbanRenderTimeLimitCardFace(card) {
   const fields = kanbanVisibleFieldsForColumn("time_limit");
   const rows = [];
   if (fields.has("date")) {
-    rows.push(`<div class="text-lg leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Date:</span> ${kanbanEscapeHtml(card.date || "—")}</div>`);
+    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Date:</span> ${kanbanEscapeHtml(card.date || "—")}</div>`);
   }
   if (fields.has("boatClass")) {
-    rows.push(`<div class="text-lg leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Class:</span> ${kanbanEscapeHtml(card.boatClass || "—")}</div>`);
+    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Class:</span> ${kanbanEscapeHtml(card.boatClass || "—")}</div>`);
   }
   if (fields.has("limitTime")) {
     const limitLabel = kanbanEscapeHtml(card.limitTime || "—");
@@ -4567,7 +4565,7 @@ function kanbanRenderTimeLimitCardFace(card) {
     const initialMin = kanbanMinutesUntilLimit(card.date, card.limitTime, card.timedOut);
     const countdownHidden = initialMin == null ? " hidden" : "";
     const countdownText = initialMin == null ? "" : (initialMin <= 0 ? "TimeOut" : `${initialMin} MIN`);
-    rows.push(`<div class="text-lg leading-snug flex flex-wrap items-center gap-2">
+    rows.push(`<div class="text-sm leading-snug flex flex-wrap items-center gap-2">
       <span><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Time limit:</span> ${limitLabel}</span>
       <span class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-badge kanban-tl-countdown${countdownHidden}"
         data-tl-date="${kanbanEscapeHtml(card.date || "")}"
@@ -4582,11 +4580,11 @@ function kanbanRenderTimeLimitCardFace(card) {
     : "";
 
   return `
-    <article class="kanban-tl-card kanban-card rrs-card rounded-lg p-4 shadow-sm shrink-0 min-w-[260px] max-w-[360px] cursor-pointer${card.timedOut ? " opacity-75" : ""}"
+    <article class="kanban-tl-card kanban-tl-card--compact kanban-card rrs-card rounded-lg p-3 shadow-sm shrink-0 cursor-pointer${card.timedOut ? " opacity-75" : ""}"
       data-case-key="${kanbanEscapeHtml(card.caseKey)}">
-      ${manualBadge ? `<div class="mb-2">${manualBadge}</div>` : ""}
-      <div class="space-y-2" style="color: var(--rrs-text);">${rows.join("")}</div>
-      ${fields.has("notes") && notesPreview ? `<div class="mt-3 pt-3 border-t text-lg whitespace-pre-wrap break-words" style="border-color: var(--rrs-border); color: var(--rrs-text);" title="${kanbanEscapeHtml(notes)}"><span class="font-semibold" style="color: var(--rrs-muted);">Notes:</span> ${kanbanEscapeHtml(notesPreview)}</div>` : ""}
+      ${manualBadge ? `<div class="mb-1">${manualBadge}</div>` : ""}
+      <div class="space-y-1" style="color: var(--rrs-text);">${rows.join("")}</div>
+      ${fields.has("notes") && notesPreview ? `<div class="mt-2 pt-2 border-t text-sm whitespace-pre-wrap break-words" style="border-color: var(--rrs-border); color: var(--rrs-text);" title="${kanbanEscapeHtml(notes)}"><span class="font-semibold" style="color: var(--rrs-muted);">Notes:</span> ${kanbanEscapeHtml(notesPreview)}</div>` : ""}
     </article>`;
 }
 
@@ -5223,7 +5221,7 @@ function openKanbanDetailModal(caseKey) {
   kanbanPopulateDetailModal(card, caseKey);
 }
 
-// Botón "Manual time limit" (pestaña Time Limit, solo admin): abre el mismo modal
+// Botón "Manual time limit" (pestaña Kanban, junto a Manage Labels, solo admin): abre el mismo modal
 // de detalle con una tarjeta borrador `time_limit`/`source:"manual"` que todavía no
 // existe en kanbanData.cards — saveKanbanCardFromModal la inserta al guardar.
 function openManualTimeLimitCreateModal() {
