@@ -4575,14 +4575,10 @@ function kanbanRenderTimeLimitCardFace(card) {
   }
   const notes = String(card.notes || "").trim();
   const notesPreview = kanbanCardBodyText(notes, 80, card);
-  const manualBadge = card.source === "manual"
-    ? `<span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">Manual</span>`
-    : "";
 
   return `
     <article class="kanban-tl-card kanban-tl-card--compact kanban-card rrs-card rounded-lg p-3 shadow-sm shrink-0 cursor-pointer${card.timedOut ? " opacity-75" : ""}"
       data-case-key="${kanbanEscapeHtml(card.caseKey)}">
-      ${manualBadge ? `<div class="mb-1">${manualBadge}</div>` : ""}
       <div class="space-y-1" style="color: var(--rrs-text);">${rows.join("")}</div>
       ${fields.has("notes") && notesPreview ? `<div class="mt-2 pt-2 border-t text-sm whitespace-pre-wrap break-words" style="border-color: var(--rrs-border); color: var(--rrs-text);" title="${kanbanEscapeHtml(notes)}"><span class="font-semibold" style="color: var(--rrs-muted);">Notes:</span> ${kanbanEscapeHtml(notesPreview)}</div>` : ""}
     </article>`;
