@@ -4553,11 +4553,11 @@ function updateKanbanDetailFieldVisibility(columnId, card) {
 function kanbanRenderTimeLimitCardFace(card) {
   const fields = kanbanVisibleFieldsForColumn("time_limit");
   const rows = [];
-  if (fields.has("date")) {
-    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Date:</span> ${kanbanEscapeHtml(card.date || "—")}</div>`);
-  }
   if (fields.has("boatClass")) {
     rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Class:</span> ${kanbanEscapeHtml(card.boatClass || "—")}</div>`);
+  }
+  if (fields.has("date")) {
+    rows.push(`<div class="text-sm leading-snug"><span class="font-semibold" style="color: var(--rrs-primary-vivid);">Date:</span> ${kanbanEscapeHtml(card.date || "—")}</div>`);
   }
   if (fields.has("limitTime")) {
     const limitLabel = kanbanEscapeHtml(card.limitTime || "—");
