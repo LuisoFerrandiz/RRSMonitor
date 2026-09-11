@@ -4,6 +4,24 @@
 
 ---
 
+## 2026-09-11 — Backup 500 resuelto en producción (sin SSH, solo Portainer)
+
+- El fichero `/app/src/api.js` dentro del contenedor **ya tenía el código nuevo**
+  (Syncthing sí lo había replicado — no era problema de bind-mount). El proceso
+  `node /app/src/api.js` (PID 9) llevaba corriendo desde antes del sync y tenía el
+  código viejo en memoria: el restart previo del usuario no llegó a matar ese proceso.
+- Diagnóstico vía consola de Portainer (Containers → `rrs-scheduler` → Console):
+  `grep -c archiveFileName /app/src/api.js` → 2 (fichero al día); `ps aux` mostró el
+  proceso arrancado antes del sync.
+- **Fix**: Restart desde el botón de Portainer (no desde el shell). Verificado:
+  `curl .../api/archive` → **401** (antes 500).
+- **Confirmado también el fix de kanban** (jueces/roles/labels, `af177fe`): mismo
+  procedimiento (`grep -c labelCatalog /app/src/api.js` → 7, restart por Portainer) →
+  verificado en el dashboard real: asignar juez+rol, guardar, recargar → persiste.
+  Ambos pendientes de despliegue quedan **cerrados**. Patrón para el futuro: el
+  volumen `/app/src` es un bind-mount vivo (Syncthing), nunca hace falta rebuild de
+  imagen — solo confirmar con `grep -c` y dar Restart en Portainer.
+
 ## 2026-09-10 (cont.) — Kanban: las tarjetas nuevas de "decided" salen compactadas
 
 - UX, sin cambio de lógica ni de columnas. Nueva función `kanbanCardMinimal(card)`:
