@@ -3493,12 +3493,15 @@ function renderTimeLimitsTable() {
 
     const canEditManual = typeof window.canManageUsers === "function" && window.canManageUsers();
     tableBody.innerHTML = rows.map((row) => {
-        const manualBadge = row.manual
-            ? ` <span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase align-middle">Manual</span>`
+        const key = kanbanEscapeHtml(row.caseKey || "");
+        const editBtn = row.manual && canEditManual
+            ? ` <button type="button" class="rrs-btn px-2 py-0.5 rounded text-[10px] align-middle" onclick="event.stopPropagation(); openKanbanDetailModal('${key}')">Edit</button>`
             : "";
-        const clickable = row.manual && canEditManual;
+        const manualBadge = row.manual
+            ? ` <span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase align-middle">Manual</span>${editBtn}`
+            : "";
         return `
-        <tr class="hover:bg-gray-50${clickable ? " cursor-pointer" : ""}"${clickable ? ` onclick="openKanbanDetailModal('${kanbanEscapeHtml(row.caseKey)}')"` : ""}>
+        <tr class="hover:bg-gray-50">
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.boatClass, "px-4 py-3 text-sm font-medium")}
             <td class="px-4 py-3 text-sm font-semibold">${kanbanEscapeHtml(row.limitTime || "")}${manualBadge}</td>
@@ -5227,14 +5230,20 @@ function openManualTimeLimitCreateModal() {
   if (typeof window.canManageUsers !== "function" || !window.canManageUsers()) return;
   const eventId = window.dashboardData?.monitorConfig?.eventId || stateData?.eventId || null;
   const caseKey = `tl:manual:${Date.now()}`;
+  // Fecha y hora actuales precargadas (huso del evento) para evitar errores de
+  // formato al escribirlas a mano — el admin solo tiene que ajustarlas.
+  const tz = kanbanReportTimeZone();
+  const todayDate = typeof getTodayDateKey === "function" ? getTodayDateKey(tz) : "";
+  const nowParts = kanbanZonedPartsFromTs(Date.now(), tz);
+  const nowTime = `${kanbanPad2(nowParts.hour)}:${kanbanPad2(nowParts.minute)}`;
   const draft = {
     cardType: "time_limit",
     caseKey,
     caseNo: "",
     column: "time_limit",
-    date: "",
+    date: todayDate,
     boatClass: "",
-    limitTime: "",
+    limitTime: nowTime,
     timedOut: false,
     notes: "",
     eventId,
