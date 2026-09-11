@@ -379,6 +379,21 @@
         .rrs-btn.rrs-kanban-btn--selected:hover .rrs-icon-accent {
             color: var(--rrs-purple-deep) !important;
         }
+        .rrs-btn.rrs-kanban-btn-soft {
+            background: #eed683;
+            color: var(--rrs-purple-deep);
+            border-color: #d9a521;
+            box-shadow: 0 2px 8px rgba(var(--rrs-purple-glow), 0.25);
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .rrs-btn.rrs-kanban-btn-soft .rrs-icon-accent {
+            color: var(--rrs-purple-deep) !important;
+        }
+        .rrs-btn.rrs-kanban-btn-soft:hover {
+            background: #e6c85a;
+            border-color: #c4900f;
+            box-shadow: 0 3px 12px rgba(var(--rrs-gold-glow), 0.5);
+        }
         .rrs-schedule-active {
             background: linear-gradient(135deg, var(--rrs-highlight-soft), var(--rrs-gold));
             border-color: var(--rrs-gold);
@@ -693,17 +708,17 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
 
             <!-- Kanban Board -->
             <div id="kanbanPanel" class="hidden">
-                <div class="px-6 pt-4 pb-2 flex justify-end gap-2">
-                    <button id="manualTimeLimitAddBtn" type="button" class="hidden rrs-btn px-3 py-1.5 rounded-lg text-sm" onclick="openManualTimeLimitCreateModal()">
+                <div class="px-6 pt-4 pb-2 flex justify-end gap-2" style="background: var(--rrs-accent-soft); position: relative; z-index: 1;">
+                    <button id="manualTimeLimitAddBtn" type="button" class="hidden rrs-btn rrs-kanban-btn-soft px-3 py-1.5 rounded-lg text-sm" onclick="openManualTimeLimitCreateModal()">
                         <i class="fas fa-clock mr-1.5 rrs-icon-accent"></i>Manual time limit
                     </button>
-                    <button id="kanbanManageLabelsBtn" type="button" class="auth-required hidden rrs-btn px-3 py-1.5 rounded-lg text-sm">
+                    <button id="kanbanManageLabelsBtn" type="button" class="auth-required hidden rrs-btn rrs-kanban-btn-soft px-3 py-1.5 rounded-lg text-sm">
                         <i class="fas fa-tags mr-1.5 rrs-icon-accent"></i>Manage Labels
                     </button>
-                    <button id="kanbanManageJudgesBtn" type="button" class="auth-required hidden rrs-btn px-3 py-1.5 rounded-lg text-sm">
+                    <button id="kanbanManageJudgesBtn" type="button" class="auth-required hidden rrs-btn rrs-kanban-btn-soft px-3 py-1.5 rounded-lg text-sm">
                         <i class="fas fa-user-tie mr-1.5 rrs-icon-accent"></i>Manage Judges
                     </button>
-                    <button id="kanbanManageRolesBtn" type="button" class="auth-required hidden rrs-btn px-3 py-1.5 rounded-lg text-sm">
+                    <button id="kanbanManageRolesBtn" type="button" class="auth-required hidden rrs-btn rrs-kanban-btn-soft px-3 py-1.5 rounded-lg text-sm">
                         <i class="fas fa-id-badge mr-1.5 rrs-icon-accent"></i>Manage Roles
                     </button>
                 </div>
