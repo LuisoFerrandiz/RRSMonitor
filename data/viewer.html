@@ -4238,7 +4238,7 @@ async function kanbanRemoveExpiredTimeLimitCard(caseKey) {
 
 async function kanbanPurgeExpiredTimeLimitCards() {
   const expiredKeys = kanbanCardsList()
-    .filter((c) => kanbanIsTimeLimitCard(c) && !kanbanIsTimeLimitActive(c))
+    .filter((c) => kanbanIsTimeLimitCard(c) && (c.orphaned || !kanbanIsTimeLimitActive(c)))
     .map((c) => c.caseKey);
   if (!expiredKeys.length) return;
   const next = { cards: { ...kanbanData.cards } };
@@ -4306,6 +4306,7 @@ function kanbanHearingCardsList() {
 function kanbanTimeLimitCardsList() {
   return kanbanCardsList()
     .filter((c) => kanbanIsTimeLimitCard(c))
+    .filter((c) => !c.orphaned)
     .filter((c) => kanbanIsTimeLimitActive(c))
     .sort((a, b) => {
       const da = String(a.date || "");

@@ -11,7 +11,9 @@
  *     representa "cuándo se bajó este caso de RRS".
  *   - Marca `orphaned:true` (+ `orphanedAt`) las tarjetas cuyo caso ha desaparecido
  *     de RRS, y limpia la marca si el caso reaparece. Las tarjetas de otro evento
- *     (`eventId` distinto al del estado actual) y las de time limit se dejan en paz.
+ *     (`eventId` distinto al del estado actual) y los time limit manuales
+ *     (`source:"manual"`) se dejan en paz; los time limit de RRS SÍ se orfanan
+ *     si el time limit deja de estar publicado (el cliente los retira).
  *
  * Es la réplica en Node de la parte pura de `bootstrapKanbanFromDashboardState`
  * (`data/viewer.html`). Si cambias aquí las reglas de columna / `caseKey` / campos,
@@ -205,7 +207,10 @@ function syncKanbanCards(state, kanban, nowIso) {
   for (const key of Object.keys(cards)) {
     const card = cards[key];
     if (!card || typeof card !== "object") continue;
-    if (card.cardType === "time_limit") continue; // los time limit caducan solos
+    // Los time limit manuales caducan solos (purga cliente por fecha/hora);
+    // los de RRS también se orfanan si RRS deja de publicarlos (p.ej. caso
+    // resuelto antes de llegar al límite).
+    if (card.cardType === "time_limit" && card.source === "manual") continue;
     // No tocar tarjetas de otro evento (el kanban se conserva al cambiar de evento).
     if (card.eventId && eventId && card.eventId !== eventId) continue;
     const present = presentKeys.has(key);
