@@ -111,13 +111,24 @@ function buildDecisionCard(detail, existing, updatedAt, eventId) {
   };
 }
 
+// `updatedAt` es el timestamp del ciclo (`formatReportTimestamp`, index.js),
+// ya en la zona de REPORT_TIME_ZONE con offset: los primeros 10 caracteres
+// son la fecha local del día de scraping, sin duplicar lógica de zona horaria.
+function dateKeyFromStamp(stamp) {
+  const s = String(stamp || "");
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : "";
+}
+
 function buildTimeLimitCard(row, updatedAt, eventId) {
   return {
     cardType: "time_limit",
     caseKey: timeLimitKey(row),
     caseNo: "",
     column: "time_limit",
-    date: String(row.date || "").trim(),
+    // Si RRS no publica fecha para este time limit, se usa el día en que el
+    // scraper lo vio por primera vez (solo al crear la tarjeta; inmutable
+    // después, igual que el resto de fechas de tarjeta).
+    date: String(row.date || "").trim() || dateKeyFromStamp(updatedAt),
     boatClass: String(row.boatClass || "").trim(),
     limitTime: String(row.limitTime || "").trim(),
     timedOut: false,
