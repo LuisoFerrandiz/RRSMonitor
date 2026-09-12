@@ -3216,6 +3216,45 @@ function computeLastChangeTimestamps() {
     return result;
 }
 
+function isRecentTimestamp(ts) {
+    return !!ts && Date.now() - new Date(ts).getTime() < NEW_BADGE_WINDOW_MS;
+}
+
+// Para las tablas que no listan eventos con `action` propio (Time Limit,
+// RET & Penalty Report, Equip & Crew Substitution): se cruza la fila actual
+// contra los `added` de changes.jsonl de las últimas 2h por su clave natural.
+function recentlyAddedNoSet(blockKeys) {
+    const set = new Set();
+    for (const block of changesLines) {
+        if (!block || !isRecentTimestamp(block.timestamp)) continue;
+        for (const bk of blockKeys) {
+            const group = block[bk];
+            if (!group || !Array.isArray(group.added)) continue;
+            for (const row of group.added) {
+                const no = String(row?.no ?? "").trim();
+                if (no) set.add(no);
+            }
+        }
+    }
+    return set;
+}
+
+function recentlyAddedTimeLimitKeySet() {
+    const set = new Set();
+    for (const block of changesLines) {
+        if (!block || !isRecentTimestamp(block.timestamp)) continue;
+        const group = block.timeLimitChanges;
+        if (!group || !Array.isArray(group.added)) continue;
+        for (const row of group.added) {
+            set.add(`${row?.date || ""}||${row?.boatClass || ""}`);
+        }
+    }
+    return set;
+}
+
+const ROW_NEW_BADGE =
+    '<span class="text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase rrs-new-badge align-middle ml-1">New</span>';
+
 function updateNewBadges() {
     const lastChange = computeLastChangeTimestamps();
     const now = Date.now();
@@ -3511,11 +3550,12 @@ function renderHearingsTable() {
     tableBody.innerHTML = items.map((item) => {
         const ts = formatEventLocaleString(item.ts);
         const rowClass = item.action === 'Removed' ? 'opacity-75' : 'hover:bg-gray-50';
+        const newBadge = item.action === 'Added' && isRecentTimestamp(item.ts) ? ROW_NEW_BADGE : '';
         return `
             <tr class="${rowClass}">
                 ${cell(ts, "px-4 py-3 text-xs whitespace-nowrap")}
                 ${cell(item.tipo, "px-4 py-3 text-sm font-medium")}
-                <td class="px-4 py-3 text-center">${actionBadge(item.action)}</td>
+                <td class="px-4 py-3 text-center">${actionBadge(item.action)}${newBadge}</td>
                 ${cell(item.ref, "px-4 py-3 text-sm font-semibold")}
                 ${cell(item.detail, "px-4 py-3 text-sm", item.detail)}
             </tr>
@@ -3560,6 +3600,7 @@ function renderTimeLimitsTable() {
     }
 
     const canEditManual = typeof window.canManageUsers === "function" && window.canManageUsers();
+    const newTlKeys = recentlyAddedTimeLimitKeySet();
     tableBody.innerHTML = rows.map((row) => {
         const key = kanbanEscapeHtml(row.caseKey || "");
         const editBtn = row.manual && canEditManual
@@ -3568,11 +3609,14 @@ function renderTimeLimitsTable() {
         const manualBadge = row.manual
             ? ` <span class="kanban-card-manual-badge text-[10px] px-2 py-0.5 rounded-full font-bold uppercase align-middle">Manual</span>${editBtn}`
             : "";
+        const newBadge = !row.manual && newTlKeys.has(`${row.date || ""}||${row.boatClass || ""}`)
+            ? ` ${ROW_NEW_BADGE}`
+            : "";
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.boatClass, "px-4 py-3 text-sm font-medium")}
-            <td class="px-4 py-3 text-sm font-semibold">${kanbanEscapeHtml(row.limitTime || "")}${manualBadge}</td>
+            <td class="px-4 py-3 text-sm font-semibold">${kanbanEscapeHtml(row.limitTime || "")}${manualBadge}${newBadge}</td>
         </tr>
     `;
     }).join('');
@@ -3702,9 +3746,11 @@ function renderPenaltyReportsTable() {
         return;
     }
 
+    const newPrNos = recentlyAddedNoSet(["retirementChanges", "penaltyReportChanges"]);
     tableBody.innerHTML = rows.map((row) => {
         const dlName = row._kind === "retirement" ? `retirement-${row.no}` : `penalty-report-${row.no}`;
         const downloadHtml = downloadLinkHtml(row.actionsPdfUrl, dlName);
+        const newBadge = newPrNos.has(String(row.no || "").trim()) ? ` ${ROW_NEW_BADGE}` : "";
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
@@ -3713,7 +3759,7 @@ function renderPenaltyReportsTable() {
             ${cell(row.leg, "px-4 py-3 text-sm text-center")}
             ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
             ${cell(row.boatsFouled, "px-4 py-3 text-sm")}
-            ${cell(row.penaltyTaken, "px-4 py-3 text-sm")}${downloadHtml}
+            ${cell(row.penaltyTaken, "px-4 py-3 text-sm")}${downloadHtml}${newBadge}
         </tr>
     `;
     }).join('');
@@ -3780,9 +3826,11 @@ function renderCrewSubmissionsTable() {
         return;
     }
 
+    const newCrewNos = recentlyAddedNoSet(["crewSubstitutionChanges", "equipmentSubstitutionChanges"]);
     tableBody.innerHTML = rows.map((row) => {
         const dlName = row._kind === "equipment" ? `equipment-${row.no}` : `crew-${row.no}`;
         const downloadHtml = downloadLinkHtml(row.pdfUrl, dlName);
+        const newBadge = newCrewNos.has(String(row.no || "").trim()) ? ROW_NEW_BADGE : "";
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
@@ -3791,7 +3839,7 @@ function renderCrewSubmissionsTable() {
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.previousCrew, "px-4 py-3 text-sm", row.previousCrew)}
             ${cell(row.newCrew, "px-4 py-3 text-sm", row.newCrew)}
-            <td class="px-4 py-3 text-sm">${escapeHtml(row.status || "-")}${downloadHtml}</td>
+            <td class="px-4 py-3 text-sm">${escapeHtml(row.status || "-")}${downloadHtml}${newBadge}</td>
         </tr>
     `;
     }).join('');
@@ -3827,12 +3875,13 @@ function renderDocumentsTable() {
     tableBody.innerHTML = items.map((item) => {
         const ts = formatEventLocaleString(item.ts);
         const rowClass = item.action === 'Removed' ? 'opacity-75' : 'hover:bg-gray-50';
+        const newBadge = item.action === 'Added' && isRecentTimestamp(item.ts) ? ROW_NEW_BADGE : '';
         const downloadHtml = downloadLinkHtml(item.data?.href, item.data?.description || `document-${item.ref}`);
         return `
             <tr class="${rowClass}">
                 ${cell(ts, "px-4 py-3 text-xs whitespace-nowrap")}
                 ${cell(item.tipo, "px-4 py-3 text-sm font-medium")}
-                <td class="px-4 py-3 text-center">${actionBadge(item.action)}</td>
+                <td class="px-4 py-3 text-center">${actionBadge(item.action)}${newBadge}</td>
                 ${detailCell(item.detail, downloadHtml)}
             </tr>
         `;
@@ -3871,12 +3920,13 @@ function renderQaTable() {
     tableBody.innerHTML = items.map((item) => {
         const ts = formatEventLocaleString(item.ts);
         const rowClass = item.action === 'Removed' ? 'opacity-75' : 'hover:bg-gray-50';
+        const newBadge = item.action === 'Added' && isRecentTimestamp(item.ts) ? ROW_NEW_BADGE : '';
         const downloadHtml = downloadLinkHtml(item.data?.pdfUrl, `qa-${item.ref}`);
         return `
             <tr class="${rowClass}">
                 ${cell(ts, "px-4 py-3 text-xs whitespace-nowrap")}
                 ${cell(item.tipo, "px-4 py-3 text-sm font-medium")}
-                <td class="px-4 py-3 text-center">${actionBadge(item.action)}</td>
+                <td class="px-4 py-3 text-center">${actionBadge(item.action)}${newBadge}</td>
                 ${cell(item.ref, "px-4 py-3 text-sm font-semibold")}
                 ${detailCell(item.detail, downloadHtml)}
             </tr>
@@ -3916,12 +3966,13 @@ function renderScoringTable() {
     tableBody.innerHTML = items.map((item) => {
         const ts = formatEventLocaleString(item.ts);
         const rowClass = item.action === 'Removed' ? 'opacity-75' : 'hover:bg-gray-50';
+        const newBadge = item.action === 'Added' && isRecentTimestamp(item.ts) ? ROW_NEW_BADGE : '';
         const downloadHtml = downloadLinkHtml(item.data?.pdfUrl, `scoring-${item.ref}`);
         return `
             <tr class="${rowClass}">
                 ${cell(ts, "px-4 py-3 text-xs whitespace-nowrap")}
                 ${cell(item.tipo, "px-4 py-3 text-sm font-medium")}
-                <td class="px-4 py-3 text-center">${actionBadge(item.action)}</td>
+                <td class="px-4 py-3 text-center">${actionBadge(item.action)}${newBadge}</td>
                 ${cell(item.ref, "px-4 py-3 text-sm font-semibold")}
                 ${detailCell(item.detail, downloadHtml)}
             </tr>
