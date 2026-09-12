@@ -357,8 +357,11 @@ function timeLimitRowKey(row) {
   return [normalize(row.date), normalize(row.boatClass)].join("||");
 }
 
+// `remaining` es una cuenta atrás que RRS recalcula cada ciclo (cambia solo
+// por el paso del tiempo) — no se incluye en la huella o cada scrape marcaría
+// el time limit como "modified" aunque fecha/clase/hora límite no cambien.
 function timeLimitFingerprint(row) {
-  return [row.date, row.boatClass, row.limitTime, row.remaining].join("||");
+  return [row.date, row.boatClass, row.limitTime].join("||");
 }
 
 function timeLimitCardTitle(row) {

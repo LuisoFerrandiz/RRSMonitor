@@ -418,16 +418,8 @@
         .kanban-tl-card--compact { min-width: 130px; max-width: 188px; }
         .kanban-tl-countdown--timeout { background: #d1f2df !important; color: #1f8a4d !important; }
         .rrs-new-badge {
-            display: inline-block;
-            font-size: 0.625rem;
-            font-weight: 800;
-            letter-spacing: 0.05em;
-            text-transform: uppercase;
-            padding: 0.1rem 0.45rem;
-            border-radius: 9999px;
-            background: linear-gradient(135deg, #ff6b5b, #ff3b30);
+            background: #ff3b30;
             color: #fff;
-            box-shadow: 0 1px 4px rgba(255, 59, 48, 0.4);
         }
         .kanban-decided-sort { position: relative; }
         .kanban-decided-sort-panel {
@@ -608,12 +600,12 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 <div id="hearings-row" onclick="switchTab('hearings')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-gavel rrs-icon-primary text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-hearings-line">Hearings / Decisions (0/0)</div>
-                    <span id="new-badge-hearings" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-hearings" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="timelimits-row" onclick="switchTab('timelimits')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-clock rrs-icon-accent text-base"></i>
                     <span id="stat-timelimit-line" class="text-base font-bold" style="color: var(--rrs-muted);">Time Limit (0/0)</span>
-                    <span id="new-badge-timelimits" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-timelimits" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="sailti-results-row" onclick="switchTab('sailtiResults')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer hidden">
                     <i class="fas fa-trophy rrs-icon-accent text-base"></i>
@@ -630,32 +622,32 @@ window.__RRS_MONITOR_CONFIG__ = {"eventId":"13730","targetUrl":"https://www.raci
                 <div id="documents-row" onclick="switchTab('documents')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-file-pdf rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-documents-line">Documents (0/0)</div>
-                    <span id="new-badge-documents" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-documents" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="qa-row" onclick="switchTab('qa')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-question-circle rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-qa-line">Q&amp;A (0/0)</div>
-                    <span id="new-badge-qa" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-qa" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="penalties-row" onclick="switchTab('penalties')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-flag rrs-icon-primary text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-penalties-line">On the water penalties (0)</div>
-                    <span id="new-badge-penalties" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-penalties" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="penalty-reports-row" onclick="switchTab('penaltyReports')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-file-lines rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-penalty-reports-line">RET &amp; Penalty Report (0)</div>
-                    <span id="new-badge-penaltyReports" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-penaltyReports" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="scoring-row" onclick="switchTab('scoring')" class="rrs-card-line flex items-center space-x-2 mb-1 cursor-pointer">
                     <i class="fas fa-calculator rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-scoring-line">Scoring inquiries (0/0)</div>
-                    <span id="new-badge-scoring" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-scoring" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
                 <div id="crew-substitutions-row" onclick="switchTab('crewSubstitutions')" class="rrs-card-line flex items-center space-x-2 cursor-pointer">
                     <i class="fas fa-users rrs-icon-accent text-base"></i>
                     <div class="text-base font-bold" style="color: var(--rrs-text);" id="stat-crew-substitutions-line">Equip &amp; Crew Substitution (0)</div>
-                    <span id="new-badge-crewSubstitutions" class="rrs-new-badge hidden">New</span>
+                    <span id="new-badge-crewSubstitutions" class="text-xs px-2 py-0.5 rounded-full font-bold uppercase rrs-new-badge hidden">New</span>
                 </div>
             </div>
 
@@ -3190,7 +3182,7 @@ async function loadFilesAutomatically() {
 
 const NEW_BADGE_WINDOW_MS = 2 * 60 * 60 * 1000;
 const NEW_BADGE_CATEGORY_KEYS = {
-    hearings: ["changes"],
+    hearings: ["changes", "decisionChanges"],
     timelimits: ["timeLimitChanges"],
     documents: ["documentChanges"],
     qa: ["questionChanges"],
@@ -3201,13 +3193,11 @@ const NEW_BADGE_CATEGORY_KEYS = {
 };
 
 function changeGroupHasChanges(group) {
+    // Solo cuenta cuando APARECE algo nuevo (added). "modified"/"removed" no
+    // disparan el badge "New" — el usuario lo pidió explícitamente: la
+    // etiqueta es para contenido nuevo, no para cambios o desapariciones.
     if (!group) return false;
-    return (
-        (group.added?.length || 0) +
-        (group.modified?.length || 0) +
-        (group.removed?.length || 0) >
-        0
-    );
+    return (group.added?.length || 0) > 0;
 }
 
 function computeLastChangeTimestamps() {
