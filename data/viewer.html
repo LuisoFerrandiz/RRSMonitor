@@ -3323,7 +3323,7 @@ function updateKanbanPanelVisibility() {
     document.getElementById("sailtiResultsPanel")?.classList.toggle("hidden", !isSailtiResults);
     document.getElementById("trackingPanel")?.classList.toggle("hidden", !isTracking);
     document.getElementById("filterSourceWrap")?.classList.toggle("hidden", isKanban || isSailtiResults || isTracking || currentTab !== "history");
-    const canAddManualTimeLimit = isKanban && !isArchiveView() && typeof window.canManageUsers === "function" && window.canManageUsers();
+    const canAddManualTimeLimit = isKanban && !isArchiveView() && typeof window.isAuthenticated === "function" && window.isAuthenticated();
     document.getElementById("manualTimeLimitAddBtn")?.classList.toggle("hidden", !canAddManualTimeLimit);
     if (searchInput) {
         searchInput.placeholder = currentTab === "history" ? "Search log..." : "Search...";
@@ -3599,7 +3599,7 @@ function renderTimeLimitsTable() {
         return;
     }
 
-    const canEditManual = typeof window.canManageUsers === "function" && window.canManageUsers();
+    const canEditManual = typeof window.isAuthenticated === "function" && window.isAuthenticated();
     const newTlKeys = recentlyAddedTimeLimitKeySet();
     tableBody.innerHTML = rows.map((row) => {
         const key = kanbanEscapeHtml(row.caseKey || "");
@@ -5343,11 +5343,11 @@ function openKanbanDetailModal(caseKey) {
   kanbanPopulateDetailModal(card, caseKey);
 }
 
-// Botón "Manual time limit" (pestaña Kanban, junto a Manage Labels, solo admin): abre el mismo modal
-// de detalle con una tarjeta borrador `time_limit`/`source:"manual"` que todavía no
-// existe en kanbanData.cards — saveKanbanCardFromModal la inserta al guardar.
+// Botón "Manual time limit" (pestaña Kanban, junto a Manage Labels, cualquier usuario logueado):
+// abre el mismo modal de detalle con una tarjeta borrador `time_limit`/`source:"manual"`
+// que todavía no existe en kanbanData.cards — saveKanbanCardFromModal la inserta al guardar.
 function openManualTimeLimitCreateModal() {
-  if (typeof window.canManageUsers !== "function" || !window.canManageUsers()) return;
+  if (typeof window.isAuthenticated !== "function" || !window.isAuthenticated()) return;
   const eventId = window.dashboardData?.monitorConfig?.eventId || stateData?.eventId || null;
   const caseKey = `tl:manual:${Date.now()}`;
   // Fecha y hora actuales precargadas (huso del evento) para evitar errores de
@@ -5384,12 +5384,12 @@ function closeKanbanDetailModal() {
 }
 
 // El botón Delete del modal solo existe para tiempos límite manuales (los de RRS
-// no se borran a mano, solo expiran solos) y solo lo ve un admin.
+// no se borran a mano, solo expiran solos) y lo ve cualquier usuario logueado.
 function updateKanbanDetailDeleteButton(card, options = {}) {
   const btn = document.getElementById("kanbanDetailDelete");
   if (!btn) return;
   const isManualTimeLimit = !options.isNewManualTimeLimit && kanbanIsTimeLimitCard(card) && card?.source === "manual";
-  const canDelete = isManualTimeLimit && typeof window.canManageUsers === "function" && window.canManageUsers();
+  const canDelete = isManualTimeLimit && typeof window.isAuthenticated === "function" && window.isAuthenticated();
   btn.classList.toggle("hidden", !canDelete);
 }
 
@@ -5698,7 +5698,7 @@ async function saveKanbanCardFromModal() {
   const isNewManualTl = modal?.dataset.isNewManualTl === "1";
 
   if (isNewManualTl) {
-    if (typeof window.canManageUsers !== "function" || !window.canManageUsers()) return;
+    if (typeof window.isAuthenticated !== "function" || !window.isAuthenticated()) return;
     const date = kanbanFieldValue("kanbanDetailDate");
     const boatClass = kanbanFieldValue("kanbanDetailBoatClass");
     const limitTime = kanbanFieldValue("kanbanDetailLimitTime");
