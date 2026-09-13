@@ -4,6 +4,42 @@
 
 ---
 
+## 2026-09-12 — Time limit de RRS quedaba huérfano para siempre + fecha vacía
+
+- **Bug real:** `syncKanbanCards` (`src/kanbanSync.js`) saltaba la orfandad para
+  CUALQUIER tarjeta `cardType:"time_limit"` (comentario "los time limit caducan
+  solos"), asumiendo que solo desaparecen por vencer fecha/hora. Pero si RRS deja
+  de publicar un time limit ANTES de su hora límite (caso resuelto, etc.), la
+  purga cliente (mira solo fecha/hora) nunca lo retira → tarjeta huérfana en el
+  kanban para siempre. Reproducido: tarjeta visible en el tablero que ya no
+  estaba en la página de RRS.
+- **Fix:** solo se exime de orfandad a los time limit **manuales**
+  (`source:"manual"` — no vienen de RRS). Los de RRS se marcan `orphaned:true`
+  igual que cualquier otro caso cuando ya no están presentes.
+  `kanbanTimeLimitCardsList` (cliente) ya no pinta tarjetas `orphaned`, y
+  `kanbanPurgeExpiredTimeLimitCards` también las borra de `kanban.json` (antes
+  solo borraba las vencidas por fecha/hora). Commit `d8ea052`.
+- **Segundo bug relacionado:** esa misma tarjeta no tenía `date` (algunos time
+  limit de RRS solo traen clase+hora, sin fecha) — vacío desde que se creó.
+  `buildTimeLimitCard` ahora, si RRS no trae fecha, usa como fallback el día en
+  que el scraper la vio por primera vez (derivado de `updatedAt`/stamp del
+  ciclo). Solo aplica al crear la tarjeta — inmutable después, igual que el
+  resto. Commit `927f2f2`.
+- Verificado con test funcional en Node (`syncKanbanCards` simulado): tarjeta
+  RRS se orfana al desaparecer del scrap; tarjeta manual no se toca; fecha vacía
+  se rellena con el día del stamp.
+- **Pendiente de desplegar**: toca `src/kanbanSync.js` (backend) → necesita
+  restart del contenedor `rrs-scheduler` por Portainer (mismo procedimiento que
+  el backup 500 y el fix de jueces/roles/labels).
+- Además, retoques UX de esta sesión (todos solo `data/viewer.html`, sin
+  redeploy): tarjetas de time limit al 65% del ancho original, botones de la
+  barra kanban (Manual time limit / Manage Labels / Judges / Roles) con tono
+  dorado a juego con el botón Kanban, quita etiquetas "Class:"/"Date:" de la
+  tarjeta (deja el dato), hora en negrita, badge TIMEOUT en verde. Backup
+  offline: la tarjeta Stages ya no pinta el horario de polling (no aplica sin
+  conexión); quitado el override que forzaba 1-2 columnas en las tarjetas de
+  stats del `.html` de archivo (ahora 3 columnas como en la web).
+
 ## 2026-09-11 (cont.) — Tiempos límite manuales, junto a los de RRS
 
 - Nuevo botón "Manual time limit" en la pestaña Time Limit (junto al buscador),
