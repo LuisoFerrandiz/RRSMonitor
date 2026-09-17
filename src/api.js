@@ -349,6 +349,9 @@ function resetEventData() {
   writeFileSafe(CHANGES_FILE, '');
   writeFileSafe(STATE_FILE, empty);
   writeFileSafe(USERS_ACTIVITY_FILE, '');
+  // Las tarjetas del kanban son datos del evento (casos/time limits de RRS);
+  // los catálogos (labels/judges/roles) viven en ficheros aparte y no se tocan.
+  writeFileSafe(KANBAN_FILE, JSON.stringify({ cards: {} }));
   try {
     const schedulerLog = path.join(DATA_DIR, 'scheduler.log');
     if (fs.existsSync(schedulerLog)) fs.writeFileSync(schedulerLog, '');
@@ -496,7 +499,7 @@ const router = {
       const state = readJson(STATE_FILE, null);
       if (state) {
         const r = syncKanbanCards(state, kanban, new Date().toISOString());
-        if (r.added.length || r.orphaned.length || r.restored.length) {
+        if (r.added.length || r.orphaned.length || r.restored.length || r.moved.length) {
           kanban = { cards: r.cards };
           writeJson(KANBAN_FILE, kanban);
         }

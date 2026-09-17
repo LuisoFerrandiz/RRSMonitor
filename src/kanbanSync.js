@@ -4,11 +4,18 @@
  * Alta aditiva de tarjetas kanban desde el estado scrapeado + marca de orfandad.
  *
  * `syncKanbanCards(state, kanban, nowIso)`:
- *   - NUNCA modifica una tarjeta existente (salvo poner/quitar la marca `orphaned`).
+ *   - NUNCA modifica una tarjeta existente, salvo dos excepciones puntuales:
+ *     poner/quitar la marca `orphaned`, y mover a "decided" cuando llega la
+ *     decisión real de un caso que ya tenía tarjeta (ver más abajo).
  *   - NUNCA borra tarjetas ni reordena nada.
  *   - Crea tarjetas para los casos de RRS que aún no la tienen. La fecha `updatedAt`
  *     se sella con el `timestamp` del ciclo de scraping y ya no vuelve a cambiar:
  *     representa "cuándo se bajó este caso de RRS".
+ *   - Si un caso ya tenía tarjeta (hearing_request/schedule) y llega su decisión
+ *     real en un ciclo posterior, la tarjeta se mueve a "decided" y se rellenan
+ *     los campos que faltan con la info de la decisión, conservando
+ *     `labelIds`/`labelsManual`/`notes` puestos a mano y el `updatedAt` original
+ *     (inmutable). Claves movidas van en `moved`.
  *   - Marca `orphaned:true` (+ `orphanedAt`) las tarjetas cuyo caso ha desaparecido
  *     de RRS, y limpia la marca si el caso reaparece. Las tarjetas de otro evento
  *     (`eventId` distinto al del estado actual) y los time limit manuales
@@ -149,6 +156,7 @@ function syncKanbanCards(state, kanban, nowIso) {
   const added = [];
   const orphaned = [];
   const restored = [];
+  const moved = [];
 
   const now = nowIso || new Date().toISOString();
   const rows = (state && Array.isArray(state.rows) && state.rows) || [];
@@ -167,7 +175,7 @@ function syncKanbanCards(state, kanban, nowIso) {
   // Sin estado RRS legible: no se crea nada y no se marca orfandad
   // (evita orfanar todo el tablero por un state.json vacío o ausente).
   if (!rows.length && !decisionRows.length && !timeLimitRows.length) {
-    return { cards, added, orphaned, restored };
+    return { cards, added, orphaned, restored, moved };
   }
 
   const presentKeys = new Set();
@@ -189,7 +197,11 @@ function syncKanbanCards(state, kanban, nowIso) {
     const decisionUrl = String(detail.fullDecisionUrl || "").trim();
     if (!decisionText && !decisionUrl) continue;
     const existing = cards[key] || desiredHearing.get(key) || null;
-    desiredDecision.set(key, buildDecisionCard(detail, existing, stamp, eventId));
+    // `updatedAt` es inmutable: si la tarjeta ya existía, conserva la fecha en
+    // que se creó (día en que RRS mostró el caso por primera vez), no la del
+    // ciclo en que llega la decisión.
+    const cardStamp = existing && existing.updatedAt ? existing.updatedAt : stamp;
+    desiredDecision.set(key, buildDecisionCard(detail, existing, cardStamp, eventId));
   }
 
   // Creación aditiva: la decisión gana sobre el hearing-request si ambos son nuevos.
@@ -197,6 +209,17 @@ function syncKanbanCards(state, kanban, nowIso) {
     if (!cards[key]) {
       cards[key] = card;
       added.push(key);
+    }
+  }
+  // Caso que ya tenía tarjeta (hearing_request/schedule de un ciclo anterior)
+  // y ahora llega su decisión real: se mueve a "decided" y se rellenan los
+  // campos que faltan con la info de la decisión. `buildDecisionCard` ya
+  // conserva labelIds/labelsManual/notes existentes (fallback a `base.*`).
+  for (const [key, card] of desiredDecision) {
+    const current = cards[key];
+    if (current && current.column !== "decided") {
+      cards[key] = card;
+      moved.push(key);
     }
   }
   for (const [key, card] of desiredHearing) {
@@ -237,7 +260,7 @@ function syncKanbanCards(state, kanban, nowIso) {
     }
   }
 
-  return { cards, added, orphaned, restored };
+  return { cards, added, orphaned, restored, moved };
 }
 
 module.exports = {

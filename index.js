@@ -829,20 +829,20 @@ async function syncKanbanFromSnapshot(snapshot) {
     }
 
     // syncKanbanCards(state, kanban, now); aquí el "state" es el snapshot del ciclo.
-    const { cards, added, orphaned, restored } = syncKanbanCards(
+    const { cards, added, orphaned, restored, moved } = syncKanbanCards(
       snapshot,
       kanban,
       new Date().toISOString()
     );
 
-    if (added.length || orphaned.length || restored.length) {
+    if (added.length || orphaned.length || restored.length || moved.length) {
       await fs.writeFile(
         CONFIG.kanbanFile,
         JSON.stringify({ cards }, null, 2),
         "utf8"
       );
       console.log(
-        `[KANBAN] +${added.length} nueva(s), ${orphaned.length} huérfana(s), ${restored.length} recuperada(s).`
+        `[KANBAN] +${added.length} nueva(s), ${orphaned.length} huérfana(s), ${restored.length} recuperada(s), ${moved.length} movida(s) a decided.`
       );
     }
   } catch (error) {
