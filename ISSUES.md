@@ -73,8 +73,10 @@
   - [x] **C1** — `padTimePart`, `zonedOffsetRFC`, `formatReportTimestamp`, `normalize`,
     `dedupeRepeatedWordSpans`, `hearingCaseKey`, `migrateStringKeysByHearingCase`
     (+ constante `REPORT_TIME_ZONE`, solo usada por `formatReportTimestamp`).
-  - [ ] **C2** — `deriveRrsEventIdFromUrl`, `expandRrsUrlTemplate` + `RRS_ORIGIN`/
+  - [x] **C2** — `deriveRrsEventIdFromUrl`, `expandRrsUrlTemplate` + `RRS_ORIGIN`/
     `RRS_URL_PLACEHOLDER` (usadas al construir `CONFIG` al cargar el módulo).
+    `RRS_URL_PLACEHOLDER` no se reimporta en `index.js` (solo la usan las dos funciones
+    movidas); `RRS_ORIGIN` sí, porque tiene muchos más call sites en `index.js`.
   - [ ] **C3** — `absolutizeRrsHref`, `hearingTypeToLabelNames`, `rowFingerprint`.
   - [ ] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
   - [ ] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).

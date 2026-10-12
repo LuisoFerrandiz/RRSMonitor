@@ -118,6 +118,34 @@ function migrateStringKeysByHearingCase(map) {
   return out;
 }
 
+const RRS_ORIGIN = "https://www.racingrulesofsailing.org";
+
+const RRS_URL_PLACEHOLDER = /\{id_evento\}|\[id_evento\]/;
+
+function deriveRrsEventIdFromUrl(url) {
+  const u = normalize(url);
+  if (!u || RRS_URL_PLACEHOLDER.test(u)) {
+    return "";
+  }
+  const m = u.match(
+    /\/(?:schedules|documents|decisions|questions|scoring_inquiries)\/(\d+)\/event\b/
+  );
+  return m ? m[1] : "";
+}
+
+function expandRrsUrlTemplate(template, eventId) {
+  const t = normalize(template);
+  const id = normalize(eventId);
+  if (!t) {
+    return "";
+  }
+  const out = t.replaceAll("{id_evento}", id).replaceAll("[id_evento]", id);
+  if (RRS_URL_PLACEHOLDER.test(out)) {
+    return "";
+  }
+  return out;
+}
+
 module.exports = {
   padTimePart,
   zonedOffsetRFC,
@@ -126,4 +154,8 @@ module.exports = {
   dedupeRepeatedWordSpans,
   hearingCaseKey,
   migrateStringKeysByHearingCase,
+  RRS_ORIGIN,
+  RRS_URL_PLACEHOLDER,
+  deriveRrsEventIdFromUrl,
+  expandRrsUrlTemplate,
 };
