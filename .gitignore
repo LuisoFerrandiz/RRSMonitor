@@ -15,3 +15,9 @@ Thumbs.db
 *_DownloadConflict*
 ~syncthing~*
 .sync-conflict-*
+# graphify: rutas locales de máquina y caché intermedia de extracción
+# (GRAPH_REPORT.md, graph.html, graph.json, manifest.json, cost.json,
+# .graphify_labels.json sí se versionan)
+graphify-out/.graphify_python
+graphify-out/.graphify_root
+graphify-out/cache/
