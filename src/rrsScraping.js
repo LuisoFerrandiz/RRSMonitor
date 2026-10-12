@@ -146,6 +146,59 @@ function expandRrsUrlTemplate(template, eventId) {
   return out;
 }
 
+function hearingTypeToLabelNames(type) {
+  const t = normalize(type).toLowerCase();
+  if (t === "protest") {
+    return ["Protest"];
+  }
+  if (t === "protest by pc") {
+    return ["Protest", "International jury"];
+  }
+  if (t === "protest by rc") {
+    return ["Protest", "Race Committee"];
+  }
+  if (t === "protest by tc") {
+    return ["Protest", "Technical Committee"];
+  }
+  if (t === "request to reopen") {
+    return ["Request to Reopen"];
+  }
+  if (t === "request for redress") {
+    return ["Request for Redress"];
+  }
+  return [];
+}
+
+function rowFingerprint(row) {
+  const linkKey = (row.hearingLinks || [])
+    .map((l) => normalize(l.url))
+    .filter(Boolean)
+    .sort()
+    .join("|");
+  return [
+    hearingCaseKey(row.no),
+    row.type,
+    row.race,
+    row.initiator,
+    row.respondents,
+    row.schedule,
+    row.location,
+    linkKey,
+  ].join("||");
+}
+
+function absolutizeRrsHref(href) {
+  const h = normalize(href);
+  if (!h) {
+    return "";
+  }
+  try {
+    return new URL(h, `${RRS_ORIGIN}/`).href;
+  } catch {
+    return h;
+  }
+}
+
 module.exports = {
   padTimePart,
   zonedOffsetRFC,
@@ -158,4 +211,7 @@ module.exports = {
   RRS_URL_PLACEHOLDER,
   deriveRrsEventIdFromUrl,
   expandRrsUrlTemplate,
+  hearingTypeToLabelNames,
+  rowFingerprint,
+  absolutizeRrsHref,
 };

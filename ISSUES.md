@@ -77,7 +77,9 @@
     `RRS_URL_PLACEHOLDER` (usadas al construir `CONFIG` al cargar el módulo).
     `RRS_URL_PLACEHOLDER` no se reimporta en `index.js` (solo la usan las dos funciones
     movidas); `RRS_ORIGIN` sí, porque tiene muchos más call sites en `index.js`.
-  - [ ] **C3** — `absolutizeRrsHref`, `hearingTypeToLabelNames`, `rowFingerprint`.
+  - [x] **C3** — `absolutizeRrsHref`, `hearingTypeToLabelNames`, `rowFingerprint`.
+    `HEARING_TYPE_TRELLO_LABEL_NAMES` (constante distinta, usada solo por el sync Trello de
+    etiquetas) se queda en `index.js` — no tiene relación con `hearingTypeToLabelNames`.
   - [ ] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
   - [ ] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
   - [ ] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).

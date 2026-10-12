@@ -19,6 +19,9 @@ const {
   RRS_ORIGIN,
   deriveRrsEventIdFromUrl,
   expandRrsUrlTemplate,
+  hearingTypeToLabelNames,
+  rowFingerprint,
+  absolutizeRrsHref,
 } = require("./src/rrsScraping");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -158,47 +161,6 @@ const HEARING_TYPE_TRELLO_LABEL_NAMES = [
   "Technical Committee",
 ];
 
-function hearingTypeToLabelNames(type) {
-  const t = normalize(type).toLowerCase();
-  if (t === "protest") {
-    return ["Protest"];
-  }
-  if (t === "protest by pc") {
-    return ["Protest", "International jury"];
-  }
-  if (t === "protest by rc") {
-    return ["Protest", "Race Committee"];
-  }
-  if (t === "protest by tc") {
-    return ["Protest", "Technical Committee"];
-  }
-  if (t === "request to reopen") {
-    return ["Request to Reopen"];
-  }
-  if (t === "request for redress") {
-    return ["Request for Redress"];
-  }
-  return [];
-}
-
-function rowFingerprint(row) {
-  const linkKey = (row.hearingLinks || [])
-    .map((l) => normalize(l.url))
-    .filter(Boolean)
-    .sort()
-    .join("|");
-  return [
-    hearingCaseKey(row.no),
-    row.type,
-    row.race,
-    row.initiator,
-    row.respondents,
-    row.schedule,
-    row.location,
-    linkKey,
-  ].join("||");
-}
-
 function extractTimeLimitRows(html) {
   const $ = cheerio.load(html);
   const rows = [];
@@ -290,18 +252,6 @@ function detectTimeLimitChanges(previousRows, currentRows) {
   }
 
   return { added, modified, removed };
-}
-
-function absolutizeRrsHref(href) {
-  const h = normalize(href);
-  if (!h) {
-    return "";
-  }
-  try {
-    return new URL(h, `${RRS_ORIGIN}/`).href;
-  } catch {
-    return h;
-  }
 }
 
 /**
