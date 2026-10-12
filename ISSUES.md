@@ -22,11 +22,10 @@
   usarlos. ESLint los marca "never used" igualmente. Fix: añadir `ignoreRestSiblings: true`
   a la regla `no-unused-vars` en `eslint.config.js`.
 
-- [ ] **`index.js:2941` — `RRS_SECTION_BY_ID` construido pero nunca usado.**
-  `const RRS_SECTION_BY_ID = new Map(RRS_TABULAR_SECTIONS.map(...))` sin ningún `.get()`
-  posterior en el archivo. Revisar si es código muerto (borrar) o si falta cablear su uso en
-  `extractRrsGenericTable`/`genericRowKey` (actualmente iteran `RRS_TABULAR_SECTIONS`
-  linealmente en vez de indexar por id).
+- [x] **`index.js:2941` — `RRS_SECTION_BY_ID` construido pero nunca usado — borrado.**
+  Confirmado dead code real: `scrapeRrsTabularSections()` y el resumen de cambios siempre
+  iteran `RRS_TABULAR_SECTIONS` linealmente (`for...of`/`.map()`), nunca hacen lookup por id;
+  cero llamadas a `RRS_SECTION_BY_ID.get(...)` en todo el archivo. Eliminado el `Map`.
 
 - [x] **`index.js:803` — `catch (error)` sin usar en `loadState()`.**
   Resuelto: ahora loguea `console.error("[loadState]", error.message)` antes de devolver
@@ -47,12 +46,9 @@
   `hasGenericChanges`. Más `test/extractRrsGenericTable.test.js` con fixtures HTML
   (reordenación de columnas, `d-none`, fila "no results"). 44 tests en total.
 
-- [ ] **Funciones Trello/HTTP sin cobertura (`trelloAuthParams`, `trelloGetCard`,
-  `applyTrelloCycle`, etc.) — son 3 de los top-10 "god nodes" del grafo** (`trelloAuthParams()`
-  21 edges, `applyTrelloCycle()` 12 edges) **pero no están testeadas.** Necesitan mock de
-  `fetch` global (Node 18+ trae `fetch` nativo — se puede sobreescribir `global.fetch` en el
-  test con `node:test`'s `t.mock` o un stub manual). Evaluar si merece la pena antes de tocar
-  esa lógica (son las funciones más conectadas = más riesgo si se rompen).
+- **Funciones Trello sin cobertura — movido a `ISSUES_TRELLO.md`.** Trello está deshabilitado
+  y sin uso previsto por ahora; todo lo relacionado con Trello (tests, cualquier otro issue que
+  aparezca) vive en ese archivo aparte y no se toca hasta que se reactive explícitamente.
 
 - [x] **Extraer `extractRrsGenericTable` + parsers de HTML a tests con fixtures.** — Ver item
   anterior: `test/extractRrsGenericTable.test.js` + `test/fixtures/*.html`.
@@ -61,16 +57,16 @@
 
 ## Fase 3 — Arquitectura / cohesión baja (más invasivo, discutir antes de tocar)
 
-- [ ] **`index.js` (~3.800 líneas) tiene cohesión muy baja (0.056) y mezcla 3 responsabilidades
-  en una sola "comunidad" del grafo:** scraping/parsing RRS, sync con Trello, y el ciclo del
-  monitor (`runMonitorCycle`). El grafo sugiere la pregunta directamente: "¿debería
-  `index.js` dividirse en módulos más pequeños?". Candidato a split en:
-  `src/rrsScraping.js` (extract*/detect*/fingerprint), `src/trelloSync.js` (todo lo que empieza
-  por `trello*`/`apply*TrelloCycle`), dejando `index.js` solo con `runMonitorCycle`/`main`.
-  **No rompe la regla "solo HTML/CSS/JS vanilla"** — son módulos CommonJS nativos de Node, no
-  un bundler. Mantener el mismo patrón `module.exports` + `require.main === module` ya
-  establecido. Alto impacto en legibilidad, pero riesgo de romper referencias cruzadas si no
-  se hace con cuidado (muchas funciones se llaman entre sí dentro del mismo archivo hoy).
+- [ ] **`index.js` (~3.800 líneas) tiene cohesión muy baja (0.056) — extraer `src/rrsScraping.js`
+  (scraping/parsing/detección de cambios RRS: `extract*`/`detect*`/`*Fingerprint`/`*RowKey`).**
+  El split de la parte Trello (`trello*`/`apply*TrelloCycle` → `src/trelloSync.js`) vive por
+  separado en `ISSUES_TRELLO.md` — Trello está deshabilitado, no tocar esa parte ahora.
+  Candidato: `src/rrsScraping.js` con las funciones de parsing/fingerprint/detect, dejando
+  `index.js` con `runMonitorCycle`/`main` + lo que quede de Trello hasta que se mueva.
+  **No rompe la regla "solo HTML/CSS/JS vanilla"** — módulo CommonJS nativo de Node, no un
+  bundler. Mantener el patrón `module.exports` + `require.main === module` ya establecido.
+  Alto impacto en legibilidad, riesgo de romper referencias cruzadas si no se hace con cuidado
+  (muchas funciones se llaman entre sí dentro del mismo archivo hoy).
 
 - [x] **97 nodos "aislados" (≤1 conexión) en el grafo — investigado, sin código muerto real.**
   Mayoría son imports repetidos (`fs`, `path`, `cheerio` como nodo por archivo, ruido del
@@ -94,8 +90,8 @@
 Listado solo como referencia cruzada — ya documentado en `CLAUDE.md` § Seguridad, decisión
 consciente, no reabrir sin hablarlo primero:
 
-- `.env` versionado históricamente con secretos reales de Trello/Telegram (rotar antes de
-  publicar el repo).
+- `.env` versionado históricamente con secretos reales de Telegram (rotar antes de publicar
+  el repo). El secreto equivalente de Trello está en `ISSUES_TRELLO.md`.
 - `data/users.json` guarda contraseñas en claro a propósito (`verifyPassword` acepta claro o
   sha256).
 

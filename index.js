@@ -2939,10 +2939,6 @@ const RRS_TABULAR_SECTIONS = [
   },
 ];
 
-const RRS_SECTION_BY_ID = new Map(
-  RRS_TABULAR_SECTIONS.map((section) => [section.id, section])
-);
-
 function genericRowKey(section, row) {
   const no = normalize(row.no);
   if (no) return no;

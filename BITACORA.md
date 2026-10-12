@@ -4,6 +4,21 @@
 
 ---
 
+## 2026-10-12 — Fase B cerrada + separación de issues Trello en `ISSUES_TRELLO.md`
+
+- **`ISSUES_TRELLO.md` nuevo:** se separaron todos los issues directamente relacionados con
+  Trello (tests sin cobertura de `trello*`/`apply*TrelloCycle`, el split de `src/trelloSync.js`
+  del refactor de `index.js`, y el secreto `TRELLO_KEY`/`TRELLO_TOKEN` en `.env` versionado) a
+  un archivo aparte, marcado "no tocar hasta que Trello se reactive" — Trello está
+  `TRELLO_ENABLED=false` y sin uso previsto. `ISSUES.md` queda solo con punteros de contexto.
+- **Fase B cerrada** (su único item no-Trello): `index.js:2941` `RRS_SECTION_BY_ID` — confirmado
+  dead code real (ningún `.get()` lo usa; `scrapeRrsTabularSections()` siempre itera
+  `RRS_TABULAR_SECTIONS` linealmente, nunca por id) y borrado. 44/44 tests, 0 warnings lint.
+- **Pendiente:** Fase C (split `index.js` en módulos, alto riesgo — requiere aprobación
+  explícita) y todo `ISSUES_TRELLO.md` (diferido hasta reactivar Trello).
+
+---
+
 ## 2026-10-12 — ISSUES.md generado con `/graphify` + Fase A resuelta (6/6, riesgo muy bajo)
 
 - **Origen:** análisis `/graphify .` (grafo de conocimiento) + lint/test de esta sesión generó
