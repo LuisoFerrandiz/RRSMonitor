@@ -36,15 +36,15 @@ Ejemplo de URL de calendario:
 
 ## 3. Archivos de salida (`DATA_DIR`, por defecto `data/` junto a `index.js`)
 
-- **Timestamps** en `state.json`, `history.jsonl`, `changes.jsonl`, consola y Telegram usan la zona **`Europe/Madrid`** (CET/CEST con offset `+01:00` / `+02:00` en el string). Opcional: define `REPORT_TIME_ZONE` en `.env` con cualquier [zona IANA](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
+- **Timestamps** en `state.json`, `checks.jsonl`, `changes.jsonl`, consola y Telegram usan la zona **`Europe/Madrid`** (CET/CEST con offset `+01:00` / `+02:00` en el string). Opcional: define `REPORT_TIME_ZONE` en `.env` con cualquier [zona IANA](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones).
 
 - **`state.json`** — Último snapshot: `rows`, `timeLimitRows`, `documentRows`, `questionRows`, mapas `trelloCards`, `trelloTimeLimitCards`, `trelloDocumentCards`, `trelloQuestionCards`, `hearingAttachmentUrlsByCase`, `fullDecisionSyncedByCase`, etc.
-- **`history.jsonl`** — Una línea JSON por ciclo (snapshots completos).
+- **`checks.jsonl`** — Una línea JSON diminuta por ciclo (SIEMPRE): `timestamp` + `changed` + contadores por sección. Auditoría de "cada vez que el sistema ha mirado"; fuente de la pestaña Log del dashboard. Sustituye al antiguo `history.jsonl` (snapshots completos), retirado.
 - **`changes.jsonl`** — Solo ciclos con cambios: `changes` (audiencias), `timeLimitChanges`, `documentChanges`, `questionChanges`.
 
 **Cambiar carpeta o vaciar datos**
 
-- **Otra carpeta:** en `.env` define `DATA_DIR` (ruta relativa o absoluta), reinicia el proceso; el script crea la carpeta si no existe y escribe `state.json`, `history.jsonl` y `changes.jsonl` ahí.
+- **Otra carpeta:** en `.env` define `DATA_DIR` (ruta relativa o absoluta), reinicia el proceso; el script crea la carpeta si no existe y escribe `state.json`, `checks.jsonl` y `changes.jsonl` ahí.
 - **Borrar o vaciar:** si falta `state.json` o no se puede leer, el script actúa como **primer arranque** (sin estado previo). Los `.jsonl` se **crean de nuevo** al añadir la primera línea.
 - **Telegram:** en ese “primer” ciclo **no** manda mensaje aunque haya muchos cambios respecto al vacío (misma lógica que la instalación nueva).
 - **Trello:** sin `trelloCards` en estado, el script **creará tarjetas nuevas** para los casos que vea. Si en el tablero siguen tarjetas viejas, puedes tener **duplicados**; en ese caso conviene tablero/listas limpias, u otro `DATA_DIR` con estado coherente, o no borrar `state.json` hasta alinear Trello.
@@ -177,7 +177,7 @@ npm start       # bucle según POLL_INTERVAL_MS
 - Las URLs **no están en el código**; salen del archivo **`.env`** cada vez que arrancas el script.
 - Abre **`.env`** y cambia el evento, por ejemplo: `RRS_EVENT_ID=XXXXX` (el número que ves en la URL del evento en la web RRS).
 - Guarda el archivo y **reinicia** el monitor (`npm start` o el servicio que uses). No hace falta editar `index.js`.
-- Si **cambias de evento** y ya tenías histórico y tarjetas en Trello enlazadas en `state.json`, **haz una copia de seguridad** de la carpeta `data` (o al menos de `state.json`, `history.jsonl` y `changes.jsonl`). Así evitas pérdida de datos y puedes arrancar limpio en el nuevo evento sin mezclar mapas de tarjetas viejos con casos nuevos.
+- Si **cambias de evento** y ya tenías histórico y tarjetas en Trello enlazadas en `state.json`, **haz una copia de seguridad** de la carpeta `data` (o al menos de `state.json`, `checks.jsonl` y `changes.jsonl`). Así evitas pérdida de datos y puedes arrancar limpio en el nuevo evento sin mezclar mapas de tarjetas viejos con casos nuevos.
 
 ---
 

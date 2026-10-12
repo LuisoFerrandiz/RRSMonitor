@@ -31,7 +31,7 @@ module.exports = [
       },
     },
     rules: {
-      "no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
+      "no-unused-vars": ["warn", { argsIgnorePattern: "^_", ignoreRestSiblings: true }],
       "no-undef": "error",
       eqeqeq: ["warn", "smart"],
       "no-var": "error",

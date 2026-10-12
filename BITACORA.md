@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-10-12 — ISSUES.md generado con `/graphify` + Fase A resuelta (6/6, riesgo muy bajo)
+
+- **Origen:** análisis `/graphify .` (grafo de conocimiento) + lint/test de esta sesión generó
+  `ISSUES.md` (backlog faseado) y un plan de ejecución re-secuenciado por riesgo con variable
+  de impacto en seguridad por item (`~/.claude/plans/no-haz-un-plan-elegant-yeti.md`).
+- **Fase A cerrada** (6 items, riesgo muy bajo/sin impacto en seguridad):
+  1. README.md: corregidas 4 referencias desactualizadas a `history.jsonl` → `checks.jsonl`.
+  2. `eslint.config.js`: `ignoreRestSiblings: true` en `no-unused-vars` (elimina 4 falsos
+     positivos en `src/api.js` por destructuring `{ password, passwordHash, ...rest }`).
+  3. `index.js:803`: `catch (error)` en `loadState()` ahora loguea `error.message` en vez de
+     silenciarlo.
+  4. `test/index.test.js`: ampliado de 6 a 24 funciones puras cubiertas (migrate/derive/expand
+     URL, hearingTypeToLabelNames, rowFingerprint, absolutizeRrsHref, detect*Changes de
+     preguntas/scoring/documentos, schedule*, changedFields, generic*).
+  5. `test/extractRrsGenericTable.test.js` + `test/fixtures/*.html` nuevos: cubren tolerancia a
+     columnas reordenadas/`d-none` y fila "no results" con colspan.
+  6. Investigados los 97 nodos "aislados" del grafo — confirmado que las 11 funciones de código
+     con ≤1 conexión (`createSession`, `destroySession`, `logUserActivity`, `readBody` en
+     `src/api.js`; 7 más en `data/viewer.html`) son falsos positivos del extractor AST de
+     graphify (llamadas dentro de handlers `router`/bindings `onclick` que no resuelve), no
+     código muerto real. Sin cambios de código.
+- **Resultado:** 44/44 tests, 0 errores lint (1 warning `RRS_SECTION_BY_ID` sin usar, es Fase B
+  — fuera de alcance, no tocado).
+- **Pendiente:** Fase B (decidir destino de `RRS_SECTION_BY_ID`; tests con mock `fetch` para
+  funciones Trello) y Fase C (split de `index.js` en módulos, alto riesgo) — ambas requieren
+  aprobación explícita antes de empezar, según el plan.
+
+---
+
 ## 2026-10-12 — Añadido test runner (`node:test`) y lint (`eslint.config.js`)
 
 - **Motivo:** proyecto sin tests ni lint, `index.js` con ~3800 líneas y ~131 funciones top-level,

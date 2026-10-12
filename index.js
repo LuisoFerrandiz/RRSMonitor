@@ -801,6 +801,7 @@ async function loadState() {
     }
     return JSON.parse(content);
   } catch (error) {
+    console.error("[loadState]", error.message);
     return null;
   }
 }
