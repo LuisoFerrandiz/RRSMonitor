@@ -49,6 +49,13 @@
   tendrá que importar `hearingTypeToLabelNames` desde `src/rrsScraping.js` igual que hace
   `index.js` hoy — no son funciones redundantes, es una dependencia real entre los dos módulos.
 
+- **`timeLimitCardTitle()` y `timeLimitDescription()`** (movidas en sub-fase C4) las usa
+  `trelloCreateTimeLimitCard()`/`trelloApplyTimeLimitRow()` (`index.js`, bloque Trello) para
+  construir `name`/`desc` de la tarjeta. `summarizeTimeLimitRow()` (misma sub-fase) **no**
+  tiene cruce con Trello — solo la usa `formatTelegramMessage()`. Mismo patrón que arriba:
+  si se hace el split `src/trelloSync.js`, ese módulo importará `timeLimitCardTitle`/
+  `timeLimitDescription` desde `src/rrsScraping.js`.
+
 ---
 
 ## Cómo usar este archivo

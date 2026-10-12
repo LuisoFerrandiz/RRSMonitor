@@ -22,6 +22,13 @@ const {
   hearingTypeToLabelNames,
   rowFingerprint,
   absolutizeRrsHref,
+  extractTimeLimitRows,
+  timeLimitRowKey,
+  timeLimitFingerprint,
+  timeLimitCardTitle,
+  summarizeTimeLimitRow,
+  timeLimitDescription,
+  detectTimeLimitChanges,
 } = require("./src/rrsScraping");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -160,99 +167,6 @@ const HEARING_TYPE_TRELLO_LABEL_NAMES = [
   "Race Committee",
   "Technical Committee",
 ];
-
-function extractTimeLimitRows(html) {
-  const $ = cheerio.load(html);
-  const rows = [];
-  const table = $("table.table-warning").first();
-  if (!table.length) {
-    return rows;
-  }
-  table.find("tbody tr").each((__, tr) => {
-    const cells = $(tr)
-      .find("td")
-      .map((___, td) => normalize($(td).text()))
-      .get();
-    if (cells.length !== 4) {
-      return;
-    }
-    const row = {
-      date: cells[0] || "",
-      boatClass: cells[1] || "",
-      limitTime: cells[2] || "",
-      remaining: cells[3] || "",
-    };
-    if (!normalize(row.date) && !normalize(row.boatClass) && !normalize(row.limitTime)) {
-      return;
-    }
-    rows.push(row);
-  });
-  return rows;
-}
-
-function timeLimitRowKey(row) {
-  return [normalize(row.date), normalize(row.boatClass)].join("||");
-}
-
-// `remaining` es una cuenta atrás que RRS recalcula cada ciclo (cambia solo
-// por el paso del tiempo) — no se incluye en la huella o cada scrape marcaría
-// el time limit como "modified" aunque fecha/clase/hora límite no cambien.
-function timeLimitFingerprint(row) {
-  return [row.date, row.boatClass, row.limitTime].join("||");
-}
-
-function timeLimitCardTitle(row) {
-  return [normalize(row.date), normalize(row.boatClass), normalize(row.limitTime)]
-    .filter(Boolean)
-    .join(" · ");
-}
-
-function summarizeTimeLimitRow(row) {
-  return [
-    `Date: ${row.date || "-"}`,
-    `Class: ${row.boatClass || "-"}`,
-    `Time limit: ${row.limitTime || "-"}`,
-    `Remaining: ${row.remaining ? row.remaining : "-"}`,
-  ].join("\n");
-}
-
-function timeLimitDescription(row) {
-  const r = normalize(row.remaining);
-  return r ? `Remaining: ${r}` : "";
-}
-
-function detectTimeLimitChanges(previousRows, currentRows) {
-  const previousMap = new Map(previousRows.map((row) => [timeLimitRowKey(row), row]));
-  const currentMap = new Map(currentRows.map((row) => [timeLimitRowKey(row), row]));
-
-  const added = [];
-  const modified = [];
-  const removed = [];
-
-  for (const [key, currentRow] of currentMap.entries()) {
-    const prevRow = previousMap.get(key);
-    if (!prevRow) {
-      added.push(currentRow);
-      continue;
-    }
-
-    if (timeLimitFingerprint(prevRow) !== timeLimitFingerprint(currentRow)) {
-      modified.push({
-        key,
-        before: prevRow,
-        after: currentRow,
-      });
-    }
-  }
-
-  for (const [key, prevRow] of previousMap.entries()) {
-    if (!currentMap.has(key)) {
-      removed.push(prevRow);
-    }
-  }
-
-  return { added, modified, removed };
-}
 
 /**
  * Celda "Type": texto del tipo (Protest, Request to Reopen, etc.) sin los enlaces del <ul>;

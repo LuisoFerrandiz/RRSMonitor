@@ -80,7 +80,9 @@
   - [x] **C3** — `absolutizeRrsHref`, `hearingTypeToLabelNames`, `rowFingerprint`.
     `HEARING_TYPE_TRELLO_LABEL_NAMES` (constante distinta, usada solo por el sync Trello de
     etiquetas) se queda en `index.js` — no tiene relación con `hearingTypeToLabelNames`.
-  - [ ] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
+  - [x] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
+    `timeLimitCardTitle`/`timeLimitDescription` tienen cruce con Trello — ver
+    `ISSUES_TRELLO.md` § Referencias cruzadas.
   - [ ] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
   - [ ] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
   - [ ] **C7** — sección Event Documents (`extractEventDocumentRows`,
