@@ -33,6 +33,10 @@ const {
   questionRowKey,
   questionFingerprint,
   detectQuestionsChanges,
+  extractScoringInquiryRows,
+  scoringInquiryRowKey,
+  scoringInquiryFingerprint,
+  detectScoringInquiryChanges,
 } = require("./src/rrsScraping");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -232,110 +236,6 @@ function extractEventDocumentRows(html) {
     });
   });
   return rows;
-}
-
-function extractScoringInquiryRows(html) {
-  const $ = cheerio.load(html);
-  const rows = [];
-  const $table = $("#inquiry-scroller").first();
-  if (!$table.length) {
-    return rows;
-  }
-
-  const headerCells = $table
-    .find("thead tr th")
-    .map((__, th) => normalize($(th).text()).toLowerCase())
-    .get();
-
-  if (
-    !headerCells.some((c) => c.includes("no.")) ||
-    !headerCells.some((c) => c.includes("response"))
-  ) {
-    return rows;
-  }
-
-  $table.find("tbody tr").each((__, tr) => {
-    const $tds = $(tr).find("td");
-    if ($tds.length < 8) {
-      return;
-    }
-
-    const no = normalize($tds.eq(0).text());
-    if (!no) {
-      return;
-    }
-
-    const $pdfLink = $tds.find('a[href*=".pdf"], a[title*="PDF"]');
-    const pdfHref = normalize($pdfLink.attr("href"));
-
-    rows.push({
-      no,
-      date: normalize($tds.eq(1).text()),
-      course: normalize($tds.eq(2).text()),
-      race: normalize($tds.eq(3).text()),
-      competitor: normalize($tds.eq(4).text()),
-      posted: normalize($tds.eq(5).text()),
-      corrected: normalize($tds.eq(6).text()),
-      response: normalize($tds.eq(7).text()),
-      pdfUrl: pdfHref ? absolutizeRrsHref(pdfHref) : "",
-    });
-  });
-  return rows;
-}
-
-function scoringInquiryRowKey(row) {
-  return normalize(row.no);
-}
-
-function scoringInquiryFingerprint(row) {
-  return [
-    row.no,
-    row.date,
-    row.course,
-    row.race,
-    row.competitor,
-    row.posted,
-    row.corrected,
-    row.response,
-    row.pdfUrl,
-  ].join("||");
-}
-
-function detectScoringInquiryChanges(previousRows, currentRows) {
-  const previousMap = new Map(
-    previousRows.map((row) => [scoringInquiryRowKey(row), row])
-  );
-  const currentMap = new Map(
-    currentRows.map((row) => [scoringInquiryRowKey(row), row])
-  );
-
-  const added = [];
-  const modified = [];
-  const removed = [];
-
-  for (const [key, currentRow] of currentMap.entries()) {
-    const prevRow = previousMap.get(key);
-    if (!prevRow) {
-      added.push(currentRow);
-      continue;
-    }
-
-    if (scoringInquiryFingerprint(prevRow) !== scoringInquiryFingerprint(currentRow)) {
-      modified.push({
-        key,
-        before: prevRow,
-        after: currentRow,
-      });
-    }
-  }
-
-  for (const [key, prevRow] of previousMap.entries()) {
-    if (!currentMap.has(key)) {
-      removed.push(prevRow);
-    }
-  }
-
-  return { added, modified, removed };
 }
 
 function documentRowKey(row) {

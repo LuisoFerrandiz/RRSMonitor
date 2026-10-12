@@ -85,7 +85,9 @@
     `ISSUES_TRELLO.md` § Referencias cruzadas.
   - [x] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
     `questionRowKey` tiene cruce con Trello — ver `ISSUES_TRELLO.md` § Referencias cruzadas.
-  - [ ] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
+  - [x] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
+    `scoringInquiryRowKey` tiene cruce con Trello — ver `ISSUES_TRELLO.md` § Referencias
+    cruzadas.
   - [ ] **C7** — sección Event Documents (`extractEventDocumentRows`,
     `extractHearingTypeCell` + 6 asociadas).
   - [ ] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +

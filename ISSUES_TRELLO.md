@@ -62,6 +62,11 @@
   `questionFingerprint()`/`extractQuestionsRows()`/`detectQuestionsChanges()` (misma
   sub-fase) no tienen cruce con Trello, solo las usa el ciclo de scraping.
 
+- **`scoringInquiryRowKey()`** (movida en sub-fase C6) — mismo patrón que `questionRowKey`:
+  la llama directamente `applyScoringInquiriesTrelloCycle()` (`index.js`, bloque Trello, 2
+  call sites). `scoringInquiryFingerprint()`/`extractScoringInquiryRows()`/
+  `detectScoringInquiryChanges()` sin cruce Trello.
+
 ---
 
 ## Cómo usar este archivo
