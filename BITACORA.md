@@ -4,6 +4,37 @@
 
 ---
 
+## 2026-10-12 — Añadido test runner (`node:test`) y lint (`eslint.config.js`)
+
+- **Motivo:** proyecto sin tests ni lint, `index.js` con ~3800 líneas y ~131 funciones top-level,
+  muchas puras (parseo, fingerprint, detección de cambios) pero no exportadas — imposible
+  testearlas sin ejecutar el ciclo completo.
+- **Cambio en `index.js`:** añadido `module.exports` (57 funciones puras/deterministas:
+  `normalize`, `hearingCaseKey`, `detectTimeLimitChanges`, `extractRrsGenericTable`, etc. —
+  no incluye las que llaman a Trello/red) al final del archivo, y envuelta la llamada a
+  `main()` en `if (require.main === module)` para que `require("./index.js")` desde un test
+  no dispare el scraping real. Mismo patrón que ya usaba `src/kanbanSync.js`.
+- **Elegido `node:test` nativo** (no Jest/Vitest) para no meter bundler/transform — regla
+  del proyecto "sin build steps". `npm test` → `node --test` → descubre `test/*.test.js`.
+  Primer archivo: `test/index.test.js` (12 tests: `normalize`, `dedupeRepeatedWordSpans`,
+  `hearingCaseKey`, `timeLimitRowKey`/`Fingerprint`, `detectTimeLimitChanges`).
+- **Elegido ESLint flat config** (`eslint.config.js`) sin plugins TS/framework — solo
+  `eslint:recommended` + globals de Node. `npm run lint` → 0 errores, 6 warnings (vars sin
+  usar preexistentes en `index.js`/`src/api.js`, no tocadas — fuera de alcance de esta sesión).
+  `eslint` queda solo en `devDependencies` (no toca "dependencias mínimas" de runtime).
+- **Incidente durante la verificación:** al probar que `npm run once` seguía funcionando tras
+  el cambio, ese comando ejecutó un ciclo real y disparó el reset automático preexistente por
+  `RRS_EVENT_ID` 13730→15805 (lógica normal de "evento nuevo", no causada por este cambio).
+  Vació `state.json`/`checks.jsonl`/`changes.jsonl` con backup en
+  `data/backup_2026-10-12T09-07-52-362Z/`. `TELEGRAM_ENABLED=false` y `TRELLO_ENABLED=false`
+  en ese momento → sin notificaciones ni tarjetas duplicadas. Lección para próxima vez:
+  **no usar `npm run once`/`npm start` como smoke test** tras tocar `index.js` — usar
+  `node --check` + `npm test` en su lugar (documentado en `CLAUDE.md`).
+- **Pendiente:** cobertura de funciones Trello/HTTP (necesitan mocking de `fetch`); el resto
+  de funciones puras no cubiertas por los 12 tests iniciales.
+
+---
+
 ## 2026-09-12 — Time limit de RRS quedaba huérfano para siempre + fecha vacía
 
 - **Bug real:** `syncKanbanCards` (`src/kanbanSync.js`) saltaba la orfandad para

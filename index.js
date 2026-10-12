@@ -3789,7 +3789,70 @@ async function main() {
   setInterval(execute, CONFIG.intervalMs);
 }
 
-main().catch((error) => {
-  console.error("[FATAL]", error.message);
-  process.exit(1);
-});
+/** Exporta funciones puras para `node:test` sin disparar `main()` al hacer `require()`. */
+module.exports = {
+  padTimePart,
+  zonedOffsetRFC,
+  formatReportTimestamp,
+  normalize,
+  dedupeRepeatedWordSpans,
+  hearingCaseKey,
+  migrateStringKeysByHearingCase,
+  deriveRrsEventIdFromUrl,
+  expandRrsUrlTemplate,
+  hearingTypeToLabelNames,
+  rowFingerprint,
+  extractTimeLimitRows,
+  timeLimitRowKey,
+  timeLimitFingerprint,
+  timeLimitCardTitle,
+  summarizeTimeLimitRow,
+  timeLimitDescription,
+  detectTimeLimitChanges,
+  absolutizeRrsHref,
+  extractEventDocumentRows,
+  extractQuestionsRows,
+  questionRowKey,
+  questionFingerprint,
+  detectQuestionsChanges,
+  extractScoringInquiryRows,
+  scoringInquiryRowKey,
+  scoringInquiryFingerprint,
+  detectScoringInquiryChanges,
+  documentRowKey,
+  eventDocumentFingerprint,
+  eventDocumentCardTitle,
+  eventDocumentCardDescription,
+  summarizeDocumentRow,
+  detectDocumentChanges,
+  countDecidedDecisionRows,
+  scrapeEventInfo,
+  extractTableRows,
+  linkTextIsFullDecision,
+  toAbsoluteUrl,
+  extractDecisionsDetailByCaseKey,
+  buildDecisionRowsFromState,
+  detectChanges,
+  summarizeRow,
+  trelloCardTitle,
+  scheduleHasClockTime,
+  scheduleIsPending,
+  scheduleUsesScheduleList,
+  formatScheduleForTrelloDescription,
+  normalizeFieldLabel,
+  extractRrsGenericTable,
+  genericRowKey,
+  genericRowFingerprint,
+  detectGenericRowChanges,
+  genericChangesEmpty,
+  hasGenericChanges,
+  changedFields,
+  formatTelegramMessage,
+};
+
+if (require.main === module) {
+  main().catch((error) => {
+    console.error("[FATAL]", error.message);
+    process.exit(1);
+  });
+}
