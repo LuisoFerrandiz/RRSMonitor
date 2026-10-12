@@ -605,6 +605,249 @@ function detectDocumentChanges(previousRows, currentRows) {
   return { added, modified, removed };
 }
 
+const RRS_EMPTY_ROW_RE = /\bno\b.*\b(found|encontrad\w*)\b/i;
+
+/**
+ * Parser de tabla RRS dirigido por cabeceras.
+ * @param {string} html
+ * @param {{ containerSelector?: string, requiredHeaders: string[], fieldMap: Record<string,string> }} opts
+ * @returns {{ rows: object[], isEmpty: boolean, headers: string[] }}
+ */
+function extractRrsGenericTable(html, opts) {
+  const { containerSelector, requiredHeaders = [], fieldMap = {} } = opts || {};
+  const $ = cheerio.load(html);
+
+  const headerText = ($th) => normalize($th.text()).toLowerCase();
+
+  let $table = null;
+  if (containerSelector) {
+    const $candidate = $(containerSelector).first();
+    if ($candidate.length && $candidate.is("table")) {
+      $table = $candidate;
+    } else if ($candidate.length) {
+      $table = $candidate.find("table").first();
+    }
+  }
+  if (!$table || !$table.length) {
+    // Descubrir la tabla por sus cabeceras (igual que extractQuestionsRows).
+    $("table").each((_, table) => {
+      if ($table && $table.length) return;
+      const heads = $(table)
+        .find("thead th")
+        .map((__, th) => headerText($(th)))
+        .get();
+      const ok = requiredHeaders.every((h) =>
+        heads.some((head) => head === h || head.includes(h))
+      );
+      if (ok) {
+        $table = $(table);
+      }
+    });
+  }
+  if (!$table || !$table.length) {
+    return { rows: [], isEmpty: false, headers: [] };
+  }
+
+  const headers = $table
+    .find("thead th")
+    .map((__, th) => headerText($(th)))
+    .get();
+  const colIndexFor = (wanted) => {
+    const w = String(wanted || "").toLowerCase();
+    let idx = headers.findIndex((h) => h === w);
+    if (idx < 0) idx = headers.findIndex((h) => h.includes(w) || w.includes(h));
+    return idx;
+  };
+
+  const fieldCols = Object.fromEntries(
+    Object.entries(fieldMap).map(([key, header]) => [key, colIndexFor(header)])
+  );
+
+  const rows = [];
+  let isEmpty = false;
+  $table.find("tbody tr").each((__, tr) => {
+    const $tds = $(tr).find("td");
+    if (!$tds.length) return;
+
+    const joined = normalize($(tr).text());
+    if ($tds.length === 1 || RRS_EMPTY_ROW_RE.test(joined)) {
+      if (RRS_EMPTY_ROW_RE.test(joined) || !joined) isEmpty = true;
+      return;
+    }
+
+    const cellText = (i) =>
+      i >= 0 && i < $tds.length ? dedupeRepeatedWordSpans($tds.eq(i).text()) : "";
+
+    const row = {};
+    for (const [key, idx] of Object.entries(fieldCols)) {
+      row[key] = cellText(idx);
+    }
+
+    const $pdf = $(tr).find('a[href$=".pdf"], a[href*=".pdf?"]').first();
+    const pdfHref = normalize($pdf.attr("href"));
+    if (pdfHref) row.actionsPdfUrl = absolutizeRrsHref(pdfHref);
+
+    const hasAny = Object.values(row).some((v) => v);
+    if (hasAny) rows.push(row);
+  });
+
+  return { rows, isEmpty, headers };
+}
+
+/** Registro declarativo de secciones tabulares RRS. */
+const RRS_TABULAR_SECTIONS = [
+  {
+    id: "retirement",
+    label: "Retirements",
+    urlKey: "retirementsUrl",
+    enabledKey: "retirementsEnabled",
+    logTag: "RETIREMENTS",
+    containerSelector: null,
+    requiredHeaders: ["no.", "boat", "type"],
+    fieldMap: {
+      no: "no.",
+      date: "date",
+      boat: "boat",
+      type: "type",
+      raceNo: "race no.",
+    },
+  },
+  {
+    id: "penaltyReport",
+    label: "Penalty Reports",
+    urlKey: "penaltyReportsUrl",
+    enabledKey: "penaltyReportsEnabled",
+    logTag: "PENALTY_REPORTS",
+    containerSelector: null,
+    requiredHeaders: ["no.", "boats fouled", "penalty taken"],
+    fieldMap: {
+      no: "no.",
+      date: "date",
+      race: "race",
+      leg: "leg",
+      boat: "boat",
+      boatsFouled: "boats fouled",
+      penaltyTaken: "penalty taken",
+    },
+  },
+  {
+    id: "onWaterPenalty",
+    label: "On-water Penalties",
+    urlKey: "onWaterPenaltiesUrl",
+    enabledKey: "penaltiesEnabled",
+    logTag: "PENALTIES_ONWATER",
+    containerSelector: "#penalty-scroller",
+    requiredHeaders: ["class", "penalty", "rule"],
+    fieldMap: {
+      class: "class",
+      nat: "nat.",
+      sailNo: "sail no.",
+      penalty: "penalty",
+      date: "date",
+      race: "race",
+      leg: "leg",
+      rule: "rule",
+      response: "response",
+      jury: "jury",
+      judges: "judges",
+    },
+  },
+  {
+    id: "crewSubstitution",
+    label: "Crew Substitutions",
+    urlKey: "crewChangesUrl",
+    enabledKey: "crewSubstitutionsEnabled",
+    logTag: "CREW_SUBSTITUTIONS",
+    containerSelector: "#substitution-scroller",
+    requiredHeaders: ["no.", "boat", "new crew"],
+    fieldMap: {
+      no: "no.",
+      boat: "boat",
+      date: "date",
+      previousCrew: "previous crew",
+      newCrew: "new crew",
+      status: "status",
+    },
+  },
+  {
+    id: "equipmentSubstitution",
+    label: "Equipment Substitutions",
+    urlKey: "equipmentSubstitutionsUrl",
+    enabledKey: "equipmentSubstitutionsEnabled",
+    logTag: "EQUIPMENT_SUBSTITUTIONS",
+    containerSelector: "#substitution-scroller",
+    requiredHeaders: ["no.", "old equip.", "new equip."],
+    fieldMap: {
+      no: "no.",
+      boat: "boat",
+      date: "date",
+      oldEquip: "old equip.",
+      newEquip: "new equip.",
+      status: "status",
+    },
+  },
+];
+
+function genericRowKey(section, row) {
+  const no = normalize(row.no);
+  if (no) return no;
+  return Object.keys(section.fieldMap)
+    .map((key) => normalize(row[key]))
+    .join("||");
+}
+
+function genericRowFingerprint(section, row) {
+  return Object.keys(section.fieldMap)
+    .map((key) => normalize(row[key]))
+    .concat(normalize(row.actionsPdfUrl))
+    .join("||");
+}
+
+function detectGenericRowChanges(section, previousRows, currentRows) {
+  const prevMap = new Map(
+    (previousRows || []).map((row) => [genericRowKey(section, row), row])
+  );
+  const curMap = new Map(
+    (currentRows || []).map((row) => [genericRowKey(section, row), row])
+  );
+
+  const added = [];
+  const modified = [];
+  const removed = [];
+
+  for (const [key, currentRow] of curMap.entries()) {
+    const prevRow = prevMap.get(key);
+    if (!prevRow) {
+      added.push(currentRow);
+      continue;
+    }
+    if (
+      genericRowFingerprint(section, prevRow) !==
+      genericRowFingerprint(section, currentRow)
+    ) {
+      modified.push({ key, before: prevRow, after: currentRow });
+    }
+  }
+  for (const [key, prevRow] of prevMap.entries()) {
+    if (!curMap.has(key)) removed.push(prevRow);
+  }
+
+  return { added, modified, removed };
+}
+
+function genericChangesEmpty() {
+  return { added: [], modified: [], removed: [] };
+}
+
+function hasGenericChanges(changes) {
+  return (
+    (changes?.added?.length || 0) +
+      (changes?.modified?.length || 0) +
+      (changes?.removed?.length || 0) >
+    0
+  );
+}
+
 module.exports = {
   padTimePart,
   zonedOffsetRFC,
@@ -643,4 +886,12 @@ module.exports = {
   eventDocumentCardDescription,
   summarizeDocumentRow,
   detectDocumentChanges,
+  RRS_EMPTY_ROW_RE,
+  extractRrsGenericTable,
+  RRS_TABULAR_SECTIONS,
+  genericRowKey,
+  genericRowFingerprint,
+  detectGenericRowChanges,
+  genericChangesEmpty,
+  hasGenericChanges,
 };

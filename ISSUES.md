@@ -92,8 +92,9 @@
     `extractHearingTypeCell` + 6 asociadas). `documentRowKey`/`eventDocumentCardTitle`/
     `eventDocumentCardDescription` tienen cruce con Trello — ver `ISSUES_TRELLO.md`
     § Referencias cruzadas.
-  - [ ] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +
-    `RRS_TABULAR_SECTIONS` + 5 asociadas).
+  - [x] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +
+    `RRS_TABULAR_SECTIONS` + 5 asociadas). Sin cruce Trello (confirmado con `grep` — estas
+    secciones nunca tuvieron integración Trello, solo `changes.jsonl`, regla de diseño Fase 1).
   - [ ] **C9a** — añadir tests que faltan para el cluster Decisions/Hearings
     (`toAbsoluteUrl`, `linkTextIsFullDecision`, `extractTableRows`,
     `extractDecisionCellDetail`, `buildDecisionRowsFromState`, `detectChanges`,
