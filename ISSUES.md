@@ -95,10 +95,12 @@
   - [x] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +
     `RRS_TABULAR_SECTIONS` + 5 asociadas). Sin cruce Trello (confirmado con `grep` — estas
     secciones nunca tuvieron integración Trello, solo `changes.jsonl`, regla de diseño Fase 1).
-  - [ ] **C9a** — añadir tests que faltan para el cluster Decisions/Hearings
-    (`toAbsoluteUrl`, `linkTextIsFullDecision`, `extractTableRows`,
-    `extractDecisionCellDetail`, `buildDecisionRowsFromState`, `detectChanges`,
-    `summarizeRow`) — **antes** de moverlas, no hay cobertura todavía.
+  - [x] **C9a** — tests añadidos para el cluster Decisions/Hearings antes de moverlas:
+    `test/decisions.test.js` (18 tests) + fixtures `hearings-schedule.html`/`decisions.html`.
+    Cubre `toAbsoluteUrl`, `linkTextIsFullDecision`, `extractTableRows`,
+    `extractDecisionsDetailByCaseKey` (ejercita `extractDecisionCellDetail` indirectamente,
+    no está exportada por separado), `buildDecisionRowsFromState`, `detectChanges`,
+    `summarizeRow`. Sin cruce Trello (confirmado con `grep`). 62/62 tests, 0 lint.
   - [ ] **C9b** — mover ese cluster + decidir destino de `fetchAllDecisionPages`
     (hace red, puede quedarse en `index.js` o moverse aparte).
 
