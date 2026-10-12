@@ -39,6 +39,18 @@
 
 ---
 
+## Referencias cruzadas (código no-Trello que algo Trello depende de él)
+
+- **`hearingTypeToLabelNames()`** vive ahora en `src/rrsScraping.js` (movida en sub-fase C3
+  del split de `index.js`, `ISSUES.md` Fase 3). La usa `trelloSyncHearingTypeLabels()`
+  (`index.js`, dentro del bloque Trello) junto con la constante `HEARING_TYPE_TRELLO_LABEL_NAMES`
+  (sigue en `index.js`, **no tocada**) para decidir qué etiquetas poner en una tarjeta.
+  Si se hace el split de `src/trelloSync.js` (item de arriba), `trelloSyncHearingTypeLabels`
+  tendrá que importar `hearingTypeToLabelNames` desde `src/rrsScraping.js` igual que hace
+  `index.js` hoy — no son funciones redundantes, es una dependencia real entre los dos módulos.
+
+---
+
 ## Cómo usar este archivo
 
 1. No empezar ningún item de aquí sin que el usuario confirme explícitamente que Trello
