@@ -101,8 +101,12 @@
     `extractDecisionsDetailByCaseKey` (ejercita `extractDecisionCellDetail` indirectamente,
     no está exportada por separado), `buildDecisionRowsFromState`, `detectChanges`,
     `summarizeRow`. Sin cruce Trello (confirmado con `grep`). 62/62 tests, 0 lint.
-  - [ ] **C9b** — mover ese cluster + decidir destino de `fetchAllDecisionPages`
-    (hace red, puede quedarse en `index.js` o moverse aparte).
+  - [x] **C9b** — movido el cluster (`extractTableRows`, `linkTextIsFullDecision`,
+    `extractDecisionCellDetail`, `toAbsoluteUrl`, `extractDecisionsDetailByCaseKey`,
+    `buildDecisionRowsFromState`, `detectChanges`, `summarizeRow`) a `src/rrsScraping.js`.
+    `fetchAllDecisionPages` se queda en `index.js` — hace red (`fetchHtml`), no es parsing
+    puro, mismo criterio que `scrapeRrsTabularSections`/`scrapeEventInfo`. Sin cruce Trello.
+    62/62 tests, 0 lint. **Fase C completa (11/11 sub-fases).**
 
   Alto impacto en legibilidad, riesgo de romper referencias cruzadas si no se hace con
   cuidado — por eso las sub-fases, cada una verificada antes de seguir con la siguiente.

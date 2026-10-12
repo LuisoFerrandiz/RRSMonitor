@@ -37,7 +37,6 @@ const {
   scoringInquiryRowKey,
   scoringInquiryFingerprint,
   detectScoringInquiryChanges,
-  extractHearingTypeCell,
   extractEventDocumentRows,
   documentRowKey,
   eventDocumentFingerprint,
@@ -52,6 +51,13 @@ const {
   detectGenericRowChanges,
   genericChangesEmpty,
   hasGenericChanges,
+  extractTableRows,
+  linkTextIsFullDecision,
+  toAbsoluteUrl,
+  extractDecisionsDetailByCaseKey,
+  buildDecisionRowsFromState,
+  detectChanges,
+  summarizeRow,
 } = require("./src/rrsScraping");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -403,122 +409,6 @@ async function readJsonSafe(filePath, fallback) {
   }
 }
 
-function extractTableRows(html) {
-  const $ = cheerio.load(html);
-  const rows = [];
-
-  const $tables = $("#schedule-scroller").length ? $("#schedule-scroller") : $("table");
-  $tables.each((_, table) => {
-    const headerCells = $(table)
-      .find("tr")
-      .first()
-      .find("th,td")
-      .map((__, cell) => normalize($(cell).text()).toLowerCase())
-      .get();
-
-    const requiredHeaders = [
-      "no.",
-      "type",
-      "race",
-      "initiator",
-      "respondent(s)",
-      "schedule",
-      "location",
-    ];
-
-    const isTargetTable = requiredHeaders.every((h) =>
-      headerCells.some((cell) => cell.includes(h))
-    );
-
-    if (!isTargetTable) {
-      return;
-    }
-
-    $(table)
-      .find("tr")
-      .slice(1)
-      .each((__, tr) => {
-        const $tds = $(tr).find("td");
-        const cellTexts = $tds
-          .map((___, td) => normalize($(td).text()))
-          .get();
-
-        if (!cellTexts.length) {
-          return;
-        }
-
-        if (
-          cellTexts.length === 1 &&
-          normalize(cellTexts[0]).toLowerCase().includes("no hearings currently scheduled")
-        ) {
-          return;
-        }
-
-        if ($tds.length < 7) {
-          return;
-        }
-
-        const typeCell = extractHearingTypeCell($, $tds.eq(1));
-
-        const row = {
-          no: normalize($tds.eq(0).text()) || "",
-          type: typeCell.type,
-          hearingLinks: typeCell.hearingLinks,
-          race: dedupeRepeatedWordSpans($tds.eq(2).text()) || "",
-          initiator: dedupeRepeatedWordSpans($tds.eq(3).text()) || "",
-          respondents: dedupeRepeatedWordSpans($tds.eq(4).text()) || "",
-          schedule: dedupeRepeatedWordSpans($tds.eq(5).text()) || "",
-          location: normalize($tds.eq(6).text()) || "",
-        };
-
-        rows.push(row);
-      });
-  });
-
-  return rows;
-}
-
-function linkTextIsFullDecision(linkText) {
-  const n = normalize(linkText).toLowerCase().replace(/\.$/, "");
-  return n === "full decision";
-}
-
-/**
- * Celda Decision: texto visible + enlace con texto "Full Decision" si existe.
- */
-function extractDecisionCellDetail($, $td) {
-  let fullDecisionUrl = "";
-  $td.find("a[href]").each((__, a) => {
-    if (fullDecisionUrl) {
-      return;
-    }
-    if (!linkTextIsFullDecision($(a).text())) {
-      return;
-    }
-    const href = normalize($(a).attr("href"));
-    if (!href) {
-      return;
-    }
-    fullDecisionUrl = absolutizeRrsHref(href);
-  });
-  const text = normalize($td.text()) || "";
-  return { text, fullDecisionUrl };
-}
-
-/**
- * Hearing Decisions page: columns No. … Decision.
- * Returns Map(caseKey -> { text, fullDecisionUrl }). Last row wins if duplicates.
- */
-/**
- * Convert relative URL to absolute URL
- */
-function toAbsoluteUrl(url, baseOrigin = "https://www.racingrulesofsailing.org") {
-  if (!url) return "";
-  if (/^https?:\/\//.test(url)) return url;
-  if (url.startsWith("/")) return baseOrigin + url;
-  return baseOrigin + "/" + url;
-}
-
 /**
  * Fetch all pages of decisions (handles pagination).
  * Returns combined HTML from all pages.
@@ -558,195 +448,6 @@ async function fetchAllDecisionPages(baseUrl) {
   }
 
   return allHtml;
-}
-
-function extractDecisionsDetailByCaseKey(html) {
-  const $ = cheerio.load(html);
-  const map = new Map();
-
-  $("table").each((_, table) => {
-    const headerCells = $(table)
-      .find("tr")
-      .first()
-      .find("th,td")
-      .map((__, cell) => normalize($(cell).text()).toLowerCase())
-      .get();
-
-    const noIdx = headerCells.findIndex((c) => c.includes("no."));
-    const typeIdx = headerCells.findIndex((c) => c.includes("type"));
-    const raceIdx = headerCells.findIndex((c) => c.includes("race"));
-    const initiatorIdx = headerCells.findIndex((c) => c.includes("initiator"));
-    const respondentIdx = headerCells.findIndex((c) => c.includes("respondent"));
-    const decIdx = headerCells.findIndex((c) => c.includes("decision"));
-
-    if (noIdx < 0 || decIdx < 0) {
-      return;
-    }
-
-    $(table)
-      .find("tr")
-      .slice(1)
-      .each((__, tr) => {
-        const $tds = $(tr).find("td");
-        if ($tds.length <= Math.max(noIdx, decIdx)) {
-          return;
-        }
-        const rawNo = normalize($tds.eq(noIdx).text()) || "";
-        if (!rawNo) {
-          return;
-        }
-        if (/no\s+decisions?\s+found/i.test(rawNo)) {
-          return;
-        }
-        const key = hearingCaseKey(rawNo);
-        const $decTd = $tds.eq(decIdx);
-        const { text, fullDecisionUrl } = extractDecisionCellDetail($, $decTd);
-
-        // Extract additional fields
-        const typeTd = typeIdx >= 0 ? $tds.eq(typeIdx) : null;
-        const typeText = typeTd ? normalize(typeTd.text()) : "";
-
-        // Extract ALL links from type cell
-        const typeLinks = [];
-        if (typeTd) {
-          typeTd.find("a").each((_, link) => {
-            const href = $(link).attr("href") || "";
-            const linkText = $(link).text().trim();
-            if (href) {
-              typeLinks.push({
-                text: linkText || "Link",
-                href: toAbsoluteUrl(href)
-              });
-            }
-          });
-        }
-
-        const race = raceIdx >= 0 ? normalize($tds.eq(raceIdx).text()) : "";
-        const initiator = initiatorIdx >= 0 ? normalize($tds.eq(initiatorIdx).text()) : "";
-        const respondents = respondentIdx >= 0 ? normalize($tds.eq(respondentIdx).text()) : "";
-
-        // Extract ALL links from decision cell
-        const decisionLinks = [];
-        $decTd.find("a").each((_, link) => {
-          const href = $(link).attr("href") || "";
-          const linkText = $(link).text().trim();
-          if (href && linkText !== "~more~") { // Skip ~more~ links
-            decisionLinks.push({
-              text: linkText || "Link",
-              href: toAbsoluteUrl(href)
-            });
-          }
-        });
-
-        map.set(key, {
-          text,
-          fullDecisionUrl: fullDecisionUrl || "",
-          type: typeText,
-          typeLinks,
-          race,
-          initiator,
-          respondents,
-          decisionLinks,
-        });
-      });
-  });
-
-  return map;
-}
-
-/**
- * Construye las filas de decisiones (kanban interno) cruzando el mapa de
- * decisiones (caseKey -> {text, fullDecisionUrl}) con las filas del calendario.
- * Falls back a previousRows para casos decididos que ya no están en el calendario.
- */
-function buildDecisionRowsFromState(decisionsMap, currentRows, previousRows) {
-  if (!decisionsMap || decisionsMap.size === 0) {
-    return [];
-  }
-  const byKey = (rows) => {
-    const m = new Map();
-    for (const row of rows || []) {
-      const k = hearingCaseKey(row.no);
-      if (!m.has(k)) {
-        m.set(k, row);
-      }
-    }
-    return m;
-  };
-  const cur = byKey(currentRows);
-  const prev = byKey(previousRows);
-
-  const out = [];
-  for (const [caseKey, detail] of decisionsMap.entries()) {
-    const row = cur.get(caseKey) || prev.get(caseKey) || {};
-    // Combine all links from type and decision cells
-    const allLinks = [...(detail.typeLinks || []), ...(detail.decisionLinks || [])];
-    const hearingLinks = allLinks.length > 0 ? allLinks : row.hearingLinks || [];
-
-    out.push({
-      no: String(row.no || caseKey),
-      type: detail.type || row.type || "",
-      hearingLinks,
-      race: detail.race || row.race || "",
-      initiator: detail.initiator || row.initiator || "",
-      respondents: detail.respondents || row.respondents || "",
-      schedule: row.schedule || "",
-      location: row.location || "",
-      text: detail.text || "",
-      fullDecisionUrl: detail.fullDecisionUrl || "",
-    });
-  }
-  // Orden estable: las decisiones más recientes (todas válidas)
-  return out;
-}
-
-function detectChanges(previousRows, currentRows) {
-  const previousMap = new Map(
-    previousRows.map((row) => [hearingCaseKey(row.no), row])
-  );
-  const currentMap = new Map(
-    currentRows.map((row) => [hearingCaseKey(row.no), row])
-  );
-
-  const added = [];
-  const modified = [];
-  const removed = [];
-
-  for (const [caseKey, currentRow] of currentMap.entries()) {
-    const prevRow = previousMap.get(caseKey);
-    if (!prevRow) {
-      added.push(currentRow);
-      continue;
-    }
-
-    if (rowFingerprint(prevRow) !== rowFingerprint(currentRow)) {
-      modified.push({
-        no: caseKey,
-        before: prevRow,
-        after: currentRow,
-      });
-    }
-  }
-
-  for (const [caseKey, prevRow] of previousMap.entries()) {
-    if (!currentMap.has(caseKey)) {
-      removed.push(prevRow);
-    }
-  }
-
-  return { added, modified, removed };
-}
-
-function summarizeRow(row) {
-  return [
-    `No: ${row.no || "-"}`,
-    `Type: ${row.type || "-"}`,
-    `Race: ${row.race || "-"}`,
-    `Initiator: ${row.initiator || "-"}`,
-    `Respondent(s): ${row.respondents || "-"}`,
-    `Schedule: ${row.schedule || "-"}`,
-    `Location: ${row.location || "-"}`,
-  ].join("\n");
 }
 
 function trelloCardTitle(row) {

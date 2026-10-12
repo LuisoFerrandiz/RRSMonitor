@@ -4,6 +4,36 @@
 
 ---
 
+## 2026-10-12 — Fase C completa: `index.js` dividido en `src/rrsScraping.js` (11/11 sub-fases)
+
+- **Fase C cerrada** (ISSUES.md): las 11 sub-fases C0-C9b completadas, cada una en su propio
+  commit, cada una verificada (`node --check` + `npm test` + `npm run lint` + 57 exports
+  intactos en `index.js`) antes de pasar a la siguiente. Resultado: `src/rrsScraping.js`
+  nuevo con todas las funciones puras de parsing/fingerprint/detección de cambios RRS
+  (formato/tiempo, URLs RRS, time limit, questions, scoring inquiry, event documents,
+  secciones tabulares genéricas, decisions/hearings). `index.js` se queda con
+  `runMonitorCycle`/`main`, los helpers de red (`fetchHtml`, `fetchAllDecisionPages` — hacen
+  fetch, no son parsing puro) y todo el bloque Trello (pendiente de su propio split en
+  `ISSUES_TRELLO.md`, diferido hasta reactivar Trello).
+- **Técnica usada en las 11 sub-fases:** mover el cuerpo de la función a
+  `src/rrsScraping.js`, en `index.js` reemplazar la definición por
+  `const { fn } = require("./src/rrsScraping")` con el mismo nombre local — ningún call site
+  interno se tocó en todo el proceso.
+- **C9a** añadió 18 tests nuevos (`test/decisions.test.js` + 2 fixtures) para el cluster
+  Decisions/Hearings *antes* de moverlo en C9b (no había cobertura previa) — subió el total
+  de 44 a 62 tests durante la Fase C.
+- **Referencias cruzadas Trello documentadas en `ISSUES_TRELLO.md`** a medida que aparecían:
+  `hearingTypeToLabelNames` (C3), `timeLimitCardTitle`/`timeLimitDescription` (C4),
+  `questionRowKey` (C5), `scoringInquiryRowKey` (C6), `documentRowKey`/
+  `eventDocumentCardTitle`/`eventDocumentCardDescription` (C7) — todas son funciones que
+  ahora viven en `src/rrsScraping.js` pero el bloque Trello de `index.js` las llama
+  directamente; cuando se haga el split `src/trelloSync.js` (ISSUES_TRELLO.md), ese módulo
+  tendrá que importarlas desde `src/rrsScraping.js`.
+- **Resultado final:** 62/62 tests, 0 warnings lint, `runMonitorCycle`/`main`/Telegram/Trello
+  sin cambios de comportamiento (solo movimiento de código, ninguna lógica reescrita).
+
+---
+
 ## 2026-10-12 — Fase C iniciada: split de `index.js` en sub-fases C0-C9b
 
 - **`src/rrsScraping.js` nuevo** — Fase C (ISSUES.md) dividida en 11 sub-fases pequeñas,
