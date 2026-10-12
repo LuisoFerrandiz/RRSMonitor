@@ -67,6 +67,13 @@
   call sites). `scoringInquiryFingerprint()`/`extractScoringInquiryRows()`/
   `detectScoringInquiryChanges()` sin cruce Trello.
 
+- **`documentRowKey()`, `eventDocumentCardTitle()`, `eventDocumentCardDescription()`**
+  (movidas en sub-fase C7) — las llaman `trelloCreateDocumentCard()`,
+  `applyDocumentTrelloCycle()` y `handleRemovedDocumentTrello()` (`index.js`, bloque Trello)
+  para emparejar filas con tarjetas y construir `name`/`desc`. `extractHearingTypeCell()`,
+  `extractEventDocumentRows()`, `eventDocumentFingerprint()`, `summarizeDocumentRow()`,
+  `detectDocumentChanges()` (misma sub-fase) sin cruce Trello.
+
 ---
 
 ## Cómo usar este archivo

@@ -88,8 +88,10 @@
   - [x] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
     `scoringInquiryRowKey` tiene cruce con Trello — ver `ISSUES_TRELLO.md` § Referencias
     cruzadas.
-  - [ ] **C7** — sección Event Documents (`extractEventDocumentRows`,
-    `extractHearingTypeCell` + 6 asociadas).
+  - [x] **C7** — sección Event Documents (`extractEventDocumentRows`,
+    `extractHearingTypeCell` + 6 asociadas). `documentRowKey`/`eventDocumentCardTitle`/
+    `eventDocumentCardDescription` tienen cruce con Trello — ver `ISSUES_TRELLO.md`
+    § Referencias cruzadas.
   - [ ] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +
     `RRS_TABULAR_SECTIONS` + 5 asociadas).
   - [ ] **C9a** — añadir tests que faltan para el cluster Decisions/Hearings

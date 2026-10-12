@@ -490,6 +490,121 @@ function detectScoringInquiryChanges(previousRows, currentRows) {
   return { added, modified, removed };
 }
 
+function extractHearingTypeCell($, $td) {
+  const $clone = $td.clone();
+  $clone.find("ul").remove();
+  const type = dedupeRepeatedWordSpans($clone.text());
+  const hearingLinks = [];
+  const seenUrls = new Set();
+  $td.find("a[href]").each((__, a) => {
+    const href = normalize($(a).attr("href"));
+    if (!href) {
+      return;
+    }
+    const abs = absolutizeRrsHref(href);
+    if (!abs || seenUrls.has(abs)) {
+      return;
+    }
+    seenUrls.add(abs);
+    const name = normalize($(a).text()) || "Adjunto";
+    hearingLinks.push({ url: abs, name });
+  });
+  return { type, hearingLinks };
+}
+
+function extractEventDocumentRows(html) {
+  const $ = cheerio.load(html);
+  const rows = [];
+  $("#document-table tr").each((__, tr) => {
+    const $tr = $(tr);
+    if ($tr.find("th").length) {
+      return;
+    }
+    const idAttr = $tr.attr("id") || "";
+    const idMatch = idAttr.match(/^document-row-(\d+)$/);
+    if (!idMatch) {
+      return;
+    }
+    const rowId = idMatch[1];
+    const $cells = $tr.find("td");
+    if ($cells.length < 2) {
+      return;
+    }
+    const $first = $cells.first();
+    const $a = $first.find("a").first();
+    const hrefRaw = normalize($a.attr("href") || "");
+    const description = normalize($a.length ? $a.text() : $first.text());
+    const dateStr = normalize($cells.eq(1).text());
+    if (!description && !hrefRaw) {
+      return;
+    }
+    rows.push({
+      rowId,
+      description,
+      href: absolutizeRrsHref(hrefRaw),
+      date: dateStr,
+    });
+  });
+  return rows;
+}
+
+function documentRowKey(row) {
+  return normalize(row.rowId);
+}
+
+function eventDocumentFingerprint(row) {
+  return [row.description, row.href, row.date].join("||");
+}
+
+function eventDocumentCardTitle(row) {
+  return [normalize(row.description), normalize(row.date)].filter(Boolean).join(" · ");
+}
+
+function eventDocumentCardDescription(row) {
+  return normalize(row.href);
+}
+
+function summarizeDocumentRow(row) {
+  return [
+    `Titulo: ${row.description || "-"}`,
+    `Fecha: ${row.date || "-"}`,
+    `Enlace: ${row.href || "-"}`,
+  ].join("\n");
+}
+
+function detectDocumentChanges(previousRows, currentRows) {
+  const previousMap = new Map(previousRows.map((row) => [documentRowKey(row), row]));
+  const currentMap = new Map(currentRows.map((row) => [documentRowKey(row), row]));
+
+  const added = [];
+  const modified = [];
+  const removed = [];
+
+  for (const [key, currentRow] of currentMap.entries()) {
+    const prevRow = previousMap.get(key);
+    if (!prevRow) {
+      added.push(currentRow);
+      continue;
+    }
+
+    if (eventDocumentFingerprint(prevRow) !== eventDocumentFingerprint(currentRow)) {
+      modified.push({
+        key,
+        before: prevRow,
+        after: currentRow,
+      });
+    }
+  }
+
+  for (const [key, prevRow] of previousMap.entries()) {
+    if (!currentMap.has(key)) {
+      removed.push(prevRow);
+    }
+  }
+
+  return { added, modified, removed };
+}
+
 module.exports = {
   padTimePart,
   zonedOffsetRFC,
@@ -520,4 +635,12 @@ module.exports = {
   scoringInquiryRowKey,
   scoringInquiryFingerprint,
   detectScoringInquiryChanges,
+  extractHearingTypeCell,
+  extractEventDocumentRows,
+  documentRowKey,
+  eventDocumentFingerprint,
+  eventDocumentCardTitle,
+  eventDocumentCardDescription,
+  summarizeDocumentRow,
+  detectDocumentChanges,
 };
