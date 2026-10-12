@@ -29,6 +29,10 @@ const {
   summarizeTimeLimitRow,
   timeLimitDescription,
   detectTimeLimitChanges,
+  extractQuestionsRows,
+  questionRowKey,
+  questionFingerprint,
+  detectQuestionsChanges,
 } = require("./src/rrsScraping");
 
 /** Rutas `./data` y `.env` respecto de `cwd` rompen cron en DSM si no hay `cd`. */
@@ -228,98 +232,6 @@ function extractEventDocumentRows(html) {
     });
   });
   return rows;
-}
-
-function extractQuestionsRows(html) {
-  const $ = cheerio.load(html);
-  const rows = [];
-  $("table").each((_, table) => {
-    const headerCells = $(table)
-      .find("thead tr th")
-      .map((__, th) => normalize($(th).text()).toLowerCase())
-      .get();
-
-    if (headerCells.includes("no.") && headerCells.includes("regarding")) {
-      $(table)
-        .find("tbody tr")
-        .each((___, tr) => {
-          const $tds = $(tr).find("td");
-          if ($tds.length < 6) return;
-
-          const no = normalize($tds.eq(0).text());
-          const competitor = normalize($tds.eq(1).text());
-          const forWhom = normalize($tds.eq(2).text());
-          const regarding = normalize($tds.eq(3).text());
-          const state = normalize($tds.eq(4).text());
-          const answered = normalize($tds.eq(5).text());
-          // Buscamos el link de PDF por el título o por el icono fa-file-pdf-o
-          const $pdfLink = $tds.find('a[title*="PDF"], a:has(i.fa-file-pdf-o)');
-          const pdfHref = normalize($pdfLink.attr("href"));
-
-          if (!no) return;
-
-          rows.push({
-            no,
-            competitor,
-            forWhom,
-            regarding,
-            state,
-            answered,
-            pdfUrl: pdfHref ? absolutizeRrsHref(pdfHref) : "",
-          });
-        });
-    }
-  });
-  return rows;
-}
-
-function questionRowKey(row) {
-  return normalize(row.no);
-}
-
-function questionFingerprint(row) {
-  return [
-    row.no,
-    row.competitor,
-    row.forWhom,
-    row.regarding,
-    row.state,
-    row.answered,
-    row.pdfUrl,
-  ].join("||");
-}
-
-function detectQuestionsChanges(previousRows, currentRows) {
-  const previousMap = new Map(previousRows.map((row) => [questionRowKey(row), row]));
-  const currentMap = new Map(currentRows.map((row) => [questionRowKey(row), row]));
-
-  const added = [];
-  const modified = [];
-  const removed = [];
-
-  for (const [key, currentRow] of currentMap.entries()) {
-    const prevRow = previousMap.get(key);
-    if (!prevRow) {
-      added.push(currentRow);
-      continue;
-    }
-
-    if (questionFingerprint(prevRow) !== questionFingerprint(currentRow)) {
-      modified.push({
-        key,
-        before: prevRow,
-        after: currentRow,
-      });
-    }
-  }
-
-  for (const [key, prevRow] of previousMap.entries()) {
-    if (!currentMap.has(key)) {
-      removed.push(prevRow);
-    }
-  }
-
-  return { added, modified, removed };
 }
 
 function extractScoringInquiryRows(html) {

@@ -83,7 +83,8 @@
   - [x] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
     `timeLimitCardTitle`/`timeLimitDescription` tienen cruce con Trello — ver
     `ISSUES_TRELLO.md` § Referencias cruzadas.
-  - [ ] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
+  - [x] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
+    `questionRowKey` tiene cruce con Trello — ver `ISSUES_TRELLO.md` § Referencias cruzadas.
   - [ ] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
   - [ ] **C7** — sección Event Documents (`extractEventDocumentRows`,
     `extractHearingTypeCell` + 6 asociadas).

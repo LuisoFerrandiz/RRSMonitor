@@ -56,6 +56,12 @@
   si se hace el split `src/trelloSync.js`, ese módulo importará `timeLimitCardTitle`/
   `timeLimitDescription` desde `src/rrsScraping.js`.
 
+- **`questionRowKey()`** (movida en sub-fase C5) la llama directamente
+  `applyQuestionsTrelloCycle()` (`index.js`, bloque Trello, 2 call sites) para emparejar
+  filas con tarjetas Trello existentes — no solo la usa `detectQuestionsChanges` internamente.
+  `questionFingerprint()`/`extractQuestionsRows()`/`detectQuestionsChanges()` (misma
+  sub-fase) no tienen cruce con Trello, solo las usa el ciclo de scraping.
+
 ---
 
 ## Cómo usar este archivo
