@@ -45,8 +45,10 @@ node src/api.js         # arranca la API HTTP en :3000 (PORT configurable)
 cambios (`normalize`, `hearingCaseKey`, `detectTimeLimitChanges`, etc. — ver bloque
 `module.exports` al final del archivo) protegidas por `if (require.main === module)` alrededor
 de la llamada a `main()`, así que `require("./index.js")` desde un test **no** dispara el ciclo
-real (sin red, sin escritura en `data/`). Las funciones que llaman a Trello/HTTP no están
-cubiertas por ahora — quedan fuera del alcance de `test/index.test.js`.
+real (sin red, sin escritura en `data/`). `test/trello.test.js` cubre `trelloAuthParams`,
+`trelloGetCard` (mock de `global.fetch`) y `applyTrelloCycle` (camino `TRELLO_ENABLED=false`,
+el real en este `.env`) — el resto de `trello*`/`apply*TrelloCycle` bajo `ENABLED=true`
+sigue sin cobertura (ver `ISSUES_TRELLO.md`).
 **Importante:** no uses `npm run once`/`npm start` como "smoke test" tras tocar `index.js` —
 ejecuta un ciclo real contra el evento configurado (red, posible reset de datos si
 `RRS_EVENT_ID` cambió, Trello/Telegram si están `true`). Para verificar sin tocar producción:
