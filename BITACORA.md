@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-12 — ISSUES_TRELLO.md Fase B: tests de los 3 god nodes Trello (parcial)
+
+- **Item 1 de `ISSUES_TRELLO.md` § Pendiente marcado `[x]` (parcial)** — `test/trello.test.js`
+  nuevo (6 tests): `trelloAuthParams` (forma del `URLSearchParams`, sin leer valores
+  reales), `trelloGetCard` (mock de `global.fetch`, caso ok y caso 404), `applyTrelloCycle`
+  (camino `TRELLO_ENABLED=false`, que es el real en este `.env`, y camino sin estado
+  previo — ambos puros, sin red). Se exportaron `trelloAuthParams`, `trelloGetCard`,
+  `applyTrelloCycle` en `module.exports` de `index.js` (antes no exportadas). Ningún
+  secreto real en el fichero de test (verificado con `grep`); Trello sigue
+  `TRELLO_ENABLED=false`, no se tocó la implementación. 67/67 tests, 0 lint.
+- **No cubierto todavía**: el resto de `trello*`/`apply*TrelloCycle` bajo el camino
+  `TRELLO_ENABLED=true` (creación/actualización real de tarjetas) — exigiría mockear todo
+  el flujo; queda para cuando Trello se reactive de verdad. El split a
+  `src/trelloSync.js` (segundo item de `ISSUES_TRELLO.md`) sigue sin empezar.
+
+---
+
 ## 2026-10-12 — Fase C completa: `index.js` dividido en `src/rrsScraping.js` (11/11 sub-fases)
 
 - **Fase C cerrada** (ISSUES.md): las 11 sub-fases C0-C9b completadas, cada una en su propio

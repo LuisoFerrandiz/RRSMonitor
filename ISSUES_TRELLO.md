@@ -10,16 +10,17 @@
 
 ## Pendiente — resolver antes de reactivar Trello
 
-- [ ] **Funciones Trello sin cobertura de tests.** `trelloAuthParams`, `trelloGetCard`,
-  `applyTrelloCycle` y el resto de `trello*`/`apply*TrelloCycle` en `index.js` no tienen
-  ningún test — son 3 de los top-10 "god nodes" del grafo de conocimiento
-  (`trelloAuthParams()` 21 edges, `applyTrelloCycle()` 12 edges, `trelloGetCard()` 12 edges),
-  es decir, las funciones más conectadas/riesgosas de todo el archivo.
-  Riesgo: Medio. Seguridad: Bajo — los tests deben usar `TRELLO_KEY`/`TRELLO_TOKEN`
-  ficticios o mockeados, nunca credenciales reales de `.env`; revisar que ningún fixture
-  de test quede con un token real antes de commitear.
-  Enfoque: sobreescribir `global.fetch` (Node 18+ nativo) con un stub que devuelva
-  respuestas Trello de ejemplo, sin tocar la implementación de `index.js`.
+- [x] **Funciones Trello sin cobertura de tests (parcial: los 3 god nodes top).**
+  `test/trello.test.js` (nuevo, 6 tests) cubre `trelloAuthParams` (forma del
+  `URLSearchParams`, sin leer valores reales de `.env`), `trelloGetCard` (mock de
+  `global.fetch`, caso ok y caso error con status+body) y `applyTrelloCycle` (camino
+  `TRELLO_ENABLED=false` — el real en este `.env` — y camino sin estado previo; ambos
+  son retornos puros sin red, no requieren mock de `fetch`). Ningún test llama a
+  `global.fetch` real ni expone `TRELLO_KEY`/`TRELLO_TOKEN`; se verificó con `grep` que
+  el fichero no contiene secretos. 67/67 tests, 0 lint. El resto de `trello*`/
+  `apply*TrelloCycle` (bloque grande, camino `TRELLO_ENABLED=true`) sigue sin cobertura
+  — exigiría mockear todo el flujo de creación/actualización de tarjetas; se deja para
+  cuando Trello se reactive de verdad (hay red de seguridad mínima ahora, no completa).
 
 - [ ] **Extraer `src/trelloSync.js` de `index.js` (parte del split documentado en
   `ISSUES.md` Fase 3, pero solo la mitad Trello).** Todo lo que empieza por `trello*` o
