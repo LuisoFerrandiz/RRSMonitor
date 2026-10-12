@@ -4,6 +4,26 @@
 
 ---
 
+## 2026-10-12 — Grafo de conocimiento (`/graphify . --update`) y commit de `graphify-out/`
+
+- **Actualizado el grafo tras Fase C + tests Trello**: `graphify . --update` re-extrajo
+  `index.js`, `test/trello.test.js` (AST) y `BITACORA.md`/`CLAUDE.md`/`ISSUES_TRELLO.md`
+  (semántico, un subagente, lectura completa de los 3 ficheros para evitar el problema ya
+  conocido de re-extracción incompleta que borra nodos previos). Resultado: 596 nodos /
+  943 edges / 46 comunidades (antes 487/955/20). Chequeo de salud del grafo: OK, sin
+  edges huérfanos/colapsados. Comunidades etiquetadas a mano (46).
+- **`graphify-out/` pasa a versionarse** (antes explícitamente fuera de git): se
+  commitean `GRAPH_REPORT.md`, `graph.html`, `graph.json`, `manifest.json`, `cost.json`,
+  `.graphify_labels.json`. Se excluyen vía `.gitignore` nuevo:
+  `graphify-out/.graphify_python` y `.graphify_root` (rutas de máquina local) y
+  `graphify-out/cache/` (caché intermedia de extracción semántica).
+- Para visualizar: abrir `graphify-out/graph.html` en el navegador (grafo interactivo) o
+  leer `graphify-out/GRAPH_REPORT.md` (resumen en texto: god nodes, conexiones
+  sorprendentes, preguntas sugeridas). Consultar en lenguaje natural con
+  `/graphify query "<pregunta>"` sin reconstruir nada.
+
+---
+
 ## 2026-10-12 — ISSUES_TRELLO.md Fase B: tests de los 3 god nodes Trello (parcial)
 
 - **Item 1 de `ISSUES_TRELLO.md` § Pendiente marcado `[x]` (parcial)** — `test/trello.test.js`
