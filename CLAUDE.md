@@ -34,13 +34,27 @@ notifica por **Telegram** y sincroniza tarjetas en **Trello**. Node.js 18+ (usa 
 npm run once      # node index.js --once  → un solo ciclo de scraping y sale
 npm start         # node index.js         → ciclo + bucle setInterval(POLL_INTERVAL_MS)
 npm run schedule  # node scheduler.js     → UNA pasada según schedule.json y sale (pensado para cron)
-node --check index.js   # verificación de sintaxis (no hay linter ni test runner configurado)
+npm test          # node --test           → unit tests (test/*.test.js) sobre funciones puras
+npm run lint      # eslint .              → lint estático (eslint.config.js, flat config)
+node --check index.js   # verificación de sintaxis
 node src/api.js         # arranca la API HTTP en :3000 (PORT configurable)
 ```
 
-No hay framework de test ni lint. La verificación habitual tras tocar `index.js` es
-`node --check index.js` + un `npm run once` real contra el evento configurado, revisando los logs
-`[START]` / `[CHANGES]` / `[NO_CHANGES]` / `[ERROR]`.
+**Test:** `node:test` nativo (cero dependencias nuevas en runtime — `eslint` solo va en
+`devDependencies`). `index.js` exporta sus funciones puras de parseo/fingerprint/detección de
+cambios (`normalize`, `hearingCaseKey`, `detectTimeLimitChanges`, etc. — ver bloque
+`module.exports` al final del archivo) protegidas por `if (require.main === module)` alrededor
+de la llamada a `main()`, así que `require("./index.js")` desde un test **no** dispara el ciclo
+real (sin red, sin escritura en `data/`). Las funciones que llaman a Trello/HTTP no están
+cubiertas por ahora — quedan fuera del alcance de `test/index.test.js`.
+**Importante:** no uses `npm run once`/`npm start` como "smoke test" tras tocar `index.js` —
+ejecuta un ciclo real contra el evento configurado (red, posible reset de datos si
+`RRS_EVENT_ID` cambió, Trello/Telegram si están `true`). Para verificar sin tocar producción:
+`node --check index.js` + `npm test`. Solo corre un ciclo real si el cambio lo exige y el
+usuario lo sabe.
+**Lint:** ESLint flat config (`eslint.config.js`) sin plugins de framework — solo
+`eslint:recommended` + globals de Node (`require`, `Buffer`, `URL`, `fetch`, …). Ignora
+`data/viewer.html`/`data/index.html` (HTML, no JS puro).
 
 `scheduler.js` **no** es un daemon: ejecuta una pasada y termina. En producción se invoca desde cron
 (DSM). Usa un lock (`data/monitor.lock`, stale a 30 min) y `data/scheduler-last-run.json` para respetar
