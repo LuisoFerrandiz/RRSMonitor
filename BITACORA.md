@@ -4,6 +4,20 @@
 
 ---
 
+## 2026-10-12 — Fase C iniciada: split de `index.js` en sub-fases C0-C9b
+
+- **`src/rrsScraping.js` nuevo** — Fase C (ISSUES.md) dividida en 11 sub-fases pequeñas,
+  verificadas una a una (`node --check` + `npm test` + `npm run lint` + 57 exports intactos),
+  en vez de un split monolítico de alto riesgo. Técnica: mover el cuerpo de la función, en
+  `index.js` reemplazar la definición por `const { fn } = require("./src/rrsScraping")` con
+  el mismo nombre local — ningún call site interno se toca.
+- **C0** (scaffolding) y **C1** (`padTimePart`, `zonedOffsetRFC`, `formatReportTimestamp`,
+  `normalize`, `dedupeRepeatedWordSpans`, `hearingCaseKey`, `migrateStringKeysByHearingCase`
+  + constante `REPORT_TIME_ZONE`) completadas y verificadas. 44/44 tests, 0 warnings lint.
+- **Pendiente:** C2-C9b (ver checklist en `ISSUES.md` Fase 3), cada una en su propio commit.
+
+---
+
 ## 2026-10-12 — Fase B cerrada + separación de issues Trello en `ISSUES_TRELLO.md`
 
 - **`ISSUES_TRELLO.md` nuevo:** se separaron todos los issues directamente relacionados con

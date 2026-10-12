@@ -61,12 +61,37 @@
   (scraping/parsing/detección de cambios RRS: `extract*`/`detect*`/`*Fingerprint`/`*RowKey`).**
   El split de la parte Trello (`trello*`/`apply*TrelloCycle` → `src/trelloSync.js`) vive por
   separado en `ISSUES_TRELLO.md` — Trello está deshabilitado, no tocar esa parte ahora.
-  Candidato: `src/rrsScraping.js` con las funciones de parsing/fingerprint/detect, dejando
-  `index.js` con `runMonitorCycle`/`main` + lo que quede de Trello hasta que se mueva.
   **No rompe la regla "solo HTML/CSS/JS vanilla"** — módulo CommonJS nativo de Node, no un
   bundler. Mantener el patrón `module.exports` + `require.main === module` ya establecido.
-  Alto impacto en legibilidad, riesgo de romper referencias cruzadas si no se hace con cuidado
-  (muchas funciones se llaman entre sí dentro del mismo archivo hoy).
+
+  **Dividido en sub-fases** (técnica: mover el cuerpo de la función a `src/rrsScraping.js`,
+  en `index.js` solo cambiar la definición por `const { fn } = require("./src/rrsScraping")`
+  con el mismo nombre local — ningún call site interno se toca). Verificación en cada una:
+  `node --check` ambos archivos + `npm test` + `npm run lint` + confirmar 57 exports intactos.
+
+  - [x] **C0** — scaffolding: `src/rrsScraping.js` vacío + `require` no-op en `index.js`.
+  - [x] **C1** — `padTimePart`, `zonedOffsetRFC`, `formatReportTimestamp`, `normalize`,
+    `dedupeRepeatedWordSpans`, `hearingCaseKey`, `migrateStringKeysByHearingCase`
+    (+ constante `REPORT_TIME_ZONE`, solo usada por `formatReportTimestamp`).
+  - [ ] **C2** — `deriveRrsEventIdFromUrl`, `expandRrsUrlTemplate` + `RRS_ORIGIN`/
+    `RRS_URL_PLACEHOLDER` (usadas al construir `CONFIG` al cargar el módulo).
+  - [ ] **C3** — `absolutizeRrsHref`, `hearingTypeToLabelNames`, `rowFingerprint`.
+  - [ ] **C4** — sección Time Limit (`extractTimeLimitRows` + 6 funciones asociadas).
+  - [ ] **C5** — sección Questions (`extractQuestionsRows` + 3 asociadas).
+  - [ ] **C6** — sección Scoring Inquiry (`extractScoringInquiryRows` + 3 asociadas).
+  - [ ] **C7** — sección Event Documents (`extractEventDocumentRows`,
+    `extractHearingTypeCell` + 6 asociadas).
+  - [ ] **C8** — secciones tabulares genéricas (`extractRrsGenericTable` +
+    `RRS_TABULAR_SECTIONS` + 5 asociadas).
+  - [ ] **C9a** — añadir tests que faltan para el cluster Decisions/Hearings
+    (`toAbsoluteUrl`, `linkTextIsFullDecision`, `extractTableRows`,
+    `extractDecisionCellDetail`, `buildDecisionRowsFromState`, `detectChanges`,
+    `summarizeRow`) — **antes** de moverlas, no hay cobertura todavía.
+  - [ ] **C9b** — mover ese cluster + decidir destino de `fetchAllDecisionPages`
+    (hace red, puede quedarse en `index.js` o moverse aparte).
+
+  Alto impacto en legibilidad, riesgo de romper referencias cruzadas si no se hace con
+  cuidado — por eso las sub-fases, cada una verificada antes de seguir con la siguiente.
 
 - [x] **97 nodos "aislados" (≤1 conexión) en el grafo — investigado, sin código muerto real.**
   Mayoría son imports repetidos (`fs`, `path`, `cheerio` como nodo por archivo, ruido del
