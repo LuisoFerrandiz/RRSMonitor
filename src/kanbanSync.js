@@ -157,6 +157,7 @@ function syncKanbanCards(state, kanban, nowIso) {
   const orphaned = [];
   const restored = [];
   const moved = [];
+  const decisionUpdated = [];
 
   const now = nowIso || new Date().toISOString();
   const rows = (state && Array.isArray(state.rows) && state.rows) || [];
@@ -175,7 +176,7 @@ function syncKanbanCards(state, kanban, nowIso) {
   // Sin estado RRS legible: no se crea nada y no se marca orfandad
   // (evita orfanar todo el tablero por un state.json vacío o ausente).
   if (!rows.length && !decisionRows.length && !timeLimitRows.length) {
-    return { cards, added, orphaned, restored, moved };
+    return { cards, added, orphaned, restored, moved, decisionUpdated };
   }
 
   const presentKeys = new Set();
@@ -222,6 +223,27 @@ function syncKanbanCards(state, kanban, nowIso) {
       moved.push(key);
     }
   }
+  // Caso ya "decided" en un ciclo anterior: RRS suele publicar primero el
+  // texto de la decisión y el PDF de la decisión completa días después (o
+  // corregir el texto), así que decisionUrl/decisionText se refrescan si
+  // cambian -- nunca se tocan notes/labelIds/labelsManual/updatedAt puestos
+  // a mano, y nunca se borra un valor ya presente si el nuevo llega vacío.
+  for (const [key, card] of desiredDecision) {
+    const current = cards[key];
+    if (!current || current.column !== "decided") continue;
+    const nextUrl = String(card.decisionUrl || "").trim();
+    const nextText = String(card.decisionText || "").trim();
+    const urlChanged = nextUrl && nextUrl !== current.decisionUrl;
+    const textChanged = nextText && nextText !== current.decisionText;
+    if (urlChanged || textChanged) {
+      cards[key] = {
+        ...current,
+        decisionUrl: nextUrl || current.decisionUrl || "",
+        decisionText: nextText || current.decisionText || "",
+      };
+      decisionUpdated.push(key);
+    }
+  }
   for (const [key, card] of desiredHearing) {
     if (!cards[key]) {
       cards[key] = card;
@@ -260,7 +282,7 @@ function syncKanbanCards(state, kanban, nowIso) {
     }
   }
 
-  return { cards, added, orphaned, restored, moved };
+  return { cards, added, orphaned, restored, moved, decisionUpdated };
 }
 
 module.exports = {

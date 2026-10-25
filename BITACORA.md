@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-10-25 — Fix: tarjetas "Decided" no actualizaban decisionUrl/decisionText tras la primera decisión
+
+- **Bug**: `syncKanbanCards()` (`src/kanbanSync.js`) solo rellenaba
+  `decisionUrl`/`decisionText` en la transición `hearing_request/schedule → decided`
+  (`current.column !== "decided"`). Una vez decidido, la tarjeta nunca se volvía a
+  tocar aunque RRS actualizara la decisión en días posteriores — y RRS publica así
+  habitualmente: primero el texto de la decisión, el PDF de la "Full Decision"
+  firmada llega días después. Resultado: tarjetas "Decided" quedaban para siempre
+  sin el archivo de la decisión (solo con el Protest Form, que sí se conservaba
+  porque venía del hearing original) y con el texto de decisión desactualizado.
+  Confirmado contra la página real de decisiones del evento 16231: `extractDecisionsDetailByCaseKey`
+  extrae bien `text`/`fullDecisionUrl`, el bug estaba en el "solo una vez" de
+  `syncKanbanCards`, no en el parser.
+- **Fix**: nuevo bloque en `syncKanbanCards()` que, para tarjetas YA en "decided",
+  refresca `decisionUrl`/`decisionText` si el valor nuevo llega no-vacío y
+  distinto del actual — nunca borra un valor existente si el nuevo llega vacío,
+  nunca toca `notes`/`labelIds`/`labelsManual`/`updatedAt` puestos a mano. Nuevo
+  contador `decisionUpdated` (junto a `added`/`orphaned`/`restored`/`moved`) en el
+  retorno; `index.js` y `src/api.js` (`GET /api/kanban`) lo incluyen en la
+  condición de guardado y en el log `[KANBAN]`. El bootstrap cliente
+  (`bootstrapKanbanFromDashboardState`, `data/viewer.html`) no tenía este bug —
+  reconstruye la tarjeta entera cada vez, sin el guard de "solo una vez".
+- Verificado: `node --check` en los 3 archivos tocados, 67/67 tests, 0 lint, y
+  prueba manual (`syncKanbanCards` con una tarjeta decided con `decisionUrl`
+  vacío + `decisionRows` nuevo con el PDF real) confirmando que se actualiza
+  `decisionUrl`/`decisionText` preservando el resto de campos.
+
+---
+
 ## 2026-10-25 — Historial de tiempos límite: ya no se borran, muestran alta/baja
 
 - **Pedido del usuario**: los tiempos límite que desaparecen de la pantalla

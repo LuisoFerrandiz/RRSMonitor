@@ -499,7 +499,13 @@ const router = {
       const state = readJson(STATE_FILE, null);
       if (state) {
         const r = syncKanbanCards(state, kanban, new Date().toISOString());
-        if (r.added.length || r.orphaned.length || r.restored.length || r.moved.length) {
+        if (
+          r.added.length ||
+          r.orphaned.length ||
+          r.restored.length ||
+          r.moved.length ||
+          r.decisionUpdated.length
+        ) {
           kanban = { cards: r.cards };
           writeJson(KANBAN_FILE, kanban);
         }
