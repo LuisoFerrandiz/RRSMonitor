@@ -666,14 +666,48 @@ function extractRrsGenericTable(html, opts) {
   const rows = [];
   let isEmpty = false;
   $table.find("tbody tr").each((__, tr) => {
-    const $tds = $(tr).find("td");
-    if (!$tds.length) return;
+    const $tdsRaw = $(tr).find("td");
+    if (!$tdsRaw.length) return;
 
     const joined = normalize($(tr).text());
-    if ($tds.length === 1 || RRS_EMPTY_ROW_RE.test(joined)) {
+    if ($tdsRaw.length === 1 || RRS_EMPTY_ROW_RE.test(joined)) {
       if (RRS_EMPTY_ROW_RE.test(joined) || !joined) isEmpty = true;
       return;
     }
+
+    // RRS a veces repite una columna dos veces en el <tbody> para el layout
+    // responsive (una celda corta "d-lg-none" para pantallas pequeñas y otra
+    // larga "d-none d-lg-table-cell" con más detalle para pantallas grandes),
+    // pero solo pone un <th> para esa columna. Eso desplaza el índice de
+    // todas las columnas siguientes en uno. Se detecta el par corta+larga
+    // (la larga empieza con el texto de la corta) y se colapsa en una sola
+    // celda lógica -- se usa la corta como valor de columna y el resto de la
+    // larga (tras el prefijo común) se guarda en `row.competitor` si no
+    // estaba ya ocupado, para no perder esa información.
+    const tdsRaw = $tdsRaw.toArray();
+    const cells = [];
+    let derivedCompetitor = "";
+    for (let i = 0; i < tdsRaw.length; i++) {
+      const $td = $(tdsRaw[i]);
+      const cls = $td.attr("class") || "";
+      const $next = tdsRaw[i + 1] ? $(tdsRaw[i + 1]) : null;
+      const nextCls = $next ? $next.attr("class") || "" : "";
+      if (/d-lg-none/.test(cls) && $next && /d-lg-table-cell/.test(nextCls)) {
+        const shortText = normalize($td.text());
+        const longText = normalize($next.text());
+        if (shortText && longText.startsWith(shortText)) {
+          cells.push(tdsRaw[i]);
+          derivedCompetitor = normalize(longText.slice(shortText.length)).replace(
+            /^[-–—\s]+/,
+            ""
+          );
+          i += 1;
+          continue;
+        }
+      }
+      cells.push(tdsRaw[i]);
+    }
+    const $tds = $(cells);
 
     const cellText = (i) =>
       i >= 0 && i < $tds.length ? dedupeRepeatedWordSpans($tds.eq(i).text()) : "";
@@ -681,6 +715,9 @@ function extractRrsGenericTable(html, opts) {
     const row = {};
     for (const [key, idx] of Object.entries(fieldCols)) {
       row[key] = cellText(idx);
+    }
+    if (derivedCompetitor && !row.competitor) {
+      row.competitor = derivedCompetitor;
     }
 
     const $pdf = $(tr).find('a[href$=".pdf"], a[href*=".pdf?"]').first();

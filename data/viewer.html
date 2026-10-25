@@ -3769,17 +3769,6 @@ function renderCrewSubmissionsTable() {
     // Pestaña fusionada "Equip & Crew Substitution": columnas de crew substitutions;
     // las filas de equipment se normalizan a ese shape (oldEquip -> OLD, newEquip -> NEW,
     // sin competitor). Los dos toggles de Configuration siguen siendo independientes.
-    const cols = [
-        { label: 'NO', width: 'col-xs', sortKey: 'no' },
-        { label: 'BOAT', width: 'col-sm', sortKey: 'boat' },
-        { label: 'COMPETITOR', width: 'col-lg', sortKey: 'competitor' },
-        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
-        { label: 'OLD', width: 'col-md', sortKey: 'previousCrew' },
-        { label: 'NEW', width: 'col-md', sortKey: 'newCrew' },
-        { label: 'STATUS', width: 'col-sm', sortKey: 'status' },
-    ];
-    tableHead.innerHTML = buildTableHead(cols, 'crewSubstitutions');
-
     const equipRows = equipmentSubstitutionRows().map((r) => ({
         no: r.no,
         boat: r.boat,
@@ -3788,10 +3777,30 @@ function renderCrewSubmissionsTable() {
         previousCrew: r.oldEquip,
         newCrew: r.newEquip,
         status: r.status,
-        pdfUrl: r.pdfUrl,
+        pdfUrl: r.actionsPdfUrl,
         _kind: "equipment",
     }));
-    const allRows = [...crewSubstitutionRows(), ...equipRows];
+    const crewRows = crewSubstitutionRows().map((r) => ({
+        ...r,
+        pdfUrl: r.actionsPdfUrl,
+        _kind: "crew",
+    }));
+    const allRows = [...crewRows, ...equipRows];
+
+    // La columna Competitor solo existe para crew substitutions (RRS la deriva
+    // de la celda "Boat" larga, ver extractRrsGenericTable) -- si ninguna fila
+    // actual trae dato, no tiene sentido mostrar la columna vacía.
+    const hasCompetitor = allRows.some((r) => r.competitor);
+    const cols = [
+        { label: 'NO', width: 'col-xs', sortKey: 'no' },
+        { label: 'BOAT', width: 'col-sm', sortKey: 'boat' },
+        ...(hasCompetitor ? [{ label: 'COMPETITOR', width: 'col-lg', sortKey: 'competitor' }] : []),
+        { label: 'DATE', width: 'col-sm', sortKey: 'date' },
+        { label: 'OLD', width: 'col-md', sortKey: 'previousCrew' },
+        { label: 'NEW', width: 'col-md', sortKey: 'newCrew' },
+        { label: 'STATUS', width: 'col-sm', sortKey: 'status' },
+    ];
+    tableHead.innerHTML = buildTableHead(cols, 'crewSubstitutions');
 
     const search = searchInput?.value?.trim() || "";
     let rows = allRows.filter((row) =>
@@ -3831,11 +3840,14 @@ function renderCrewSubmissionsTable() {
         const dlName = row._kind === "equipment" ? `equipment-${row.no}` : `crew-${row.no}`;
         const downloadHtml = downloadLinkHtml(row.pdfUrl, dlName);
         const newBadge = newCrewNos.has(String(row.no || "").trim()) ? ROW_NEW_BADGE : "";
+        const competitorCell = hasCompetitor
+            ? cell(row.competitor, "px-4 py-3 text-sm", row.competitor)
+            : "";
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
             ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
-            ${cell(row.competitor, "px-4 py-3 text-sm", row.competitor)}
+            ${competitorCell}
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.previousCrew, "px-4 py-3 text-sm", row.previousCrew)}
             ${cell(row.newCrew, "px-4 py-3 text-sm", row.newCrew)}

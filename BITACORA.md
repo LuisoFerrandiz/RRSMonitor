@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-10-25 — Fix: pestaña Equip & Crew Substitution (Date↔Boat, link PDF, columna Competitor)
+
+- **Causa raíz (Date mostraba el Boat en crew substitutions)**: la página real de
+  RRS (`/crew_substitutions/{id}/event`) renderiza la columna "Boat" **dos veces**
+  en el `<tbody>` — una celda corta `d-lg-none` (solo clase+sailno) y otra larga
+  `d-none d-lg-table-cell` (boat + nombre del competidor), pero solo hay **un**
+  `<th>Boat</th>` en el `<thead>`. Eso desplaza el índice de todas las columnas
+  siguientes en 1: "Date" leía en realidad la celda larga de Boat, "Previous Crew"
+  leía la fecha real, "New Crew" leía el nombre de previous crew, y el "Status" real
+  ("Approved") nunca se capturaba (quedaba fuera del `fieldMap`). Confirmado con
+  fetch directo + `extractRrsGenericTable` contra el evento real.
+- **Fix en `src/rrsScraping.js` (`extractRrsGenericTable`)**: antes de mapear por
+  índice, detecta el par celda-corta+celda-larga (la larga empieza con el texto de
+  la corta) y lo colapsa en una sola celda lógica — usa la corta como valor de
+  columna y guarda el resto de la larga (tras el prefijo común) en `row.competitor`.
+  Esto realinea todas las columnas Y rellena el campo Competitor que el frontend
+  ya tenía definido pero nunca recibía dato.
+- **Fix en `data/viewer.html` (`renderCrewSubmissionsTable`)**:
+  - Link al PDF: usaba `row.pdfUrl`, que nunca existía (el campo real que pone
+    `extractRrsGenericTable` es `actionsPdfUrl`) — por eso el enlace nunca aparecía
+    ni en crew ni en equipment substitutions. Corregido mapeando `pdfUrl:
+    r.actionsPdfUrl` para ambos tipos de fila.
+  - Columna Competitor: ahora se oculta dinámicamente (cabecera + celda) cuando
+    ninguna fila actual trae ese dato — antes siempre se mostraba vacía porque el
+    campo nunca se poblaba.
+- **Investigado, no corregido (fuera de alcance de este pedido)**: Equipment
+  Substitutions tiene un patrón distinto (texto duplicado dentro del mismo `<td>`
+  vía `<span>`s con clases responsive, no celdas duplicadas) que ensucia el texto
+  de Boat/Date con contenido repetido (ej. "SB20 - BEL3194 - Smok... SB20 -
+  BEL3194"). No desplaza columnas (headers y celdas del body cuadran 1:1), pero sí
+  afecta a la limpieza del dato mostrado. Pendiente si se quiere abordar.
+- Verificado: `node --check src/rrsScraping.js`, 67/67 tests, 0 lint, sintaxis de
+  los `<script>` inline de `viewer.html` parseada con `new Function`. Sin tocar
+  `.env` ni backend fuera de `rrsScraping.js`.
+
+---
+
 ## 2026-10-25 — Fix: tiempos límite manuales desaparecían del listado al expirar
 
 - **Bug**: `kanbanRemoveExpiredTimeLimitCard()` y `kanbanPurgeExpiredTimeLimitCards()`
