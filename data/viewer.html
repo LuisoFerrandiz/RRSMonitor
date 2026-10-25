@@ -4336,7 +4336,13 @@ function kanbanUpdateCountdownBadges() {
 
 async function kanbanRemoveExpiredTimeLimitCard(caseKey) {
   if (kanbanExpiredRemovalDone.has(caseKey)) return;
-  if (!kanbanData.cards?.[caseKey]) return;
+  const card = kanbanData.cards?.[caseKey];
+  if (!card) return;
+  // Los manuales no tienen otro almacén: si se borran aquí desaparecen también
+  // del listado de la pestaña Time Limit (que los lee de kanbanData.cards). El
+  // filtro de "activo" ya los oculta de la franja principal sin necesidad de
+  // borrarlos — solo se purgan de almacenamiento los no-manuales (RRS).
+  if (card.source === "manual") return;
   kanbanExpiredRemovalDone.add(caseKey);
   const next = { cards: { ...kanbanData.cards } };
   delete next.cards[caseKey];
@@ -4350,8 +4356,16 @@ async function kanbanRemoveExpiredTimeLimitCard(caseKey) {
 }
 
 async function kanbanPurgeExpiredTimeLimitCards() {
+  // Los manuales no tienen otro almacén: purgarlos aquí los borra también del
+  // listado de la pestaña Time Limit (lee de kanbanData.cards). El filtro de
+  // "activo" ya los oculta de la franja principal sin necesidad de borrarlos.
   const expiredKeys = kanbanCardsList()
-    .filter((c) => kanbanIsTimeLimitCard(c) && (c.orphaned || !kanbanIsTimeLimitActive(c)))
+    .filter(
+      (c) =>
+        kanbanIsTimeLimitCard(c) &&
+        c.source !== "manual" &&
+        (c.orphaned || !kanbanIsTimeLimitActive(c))
+    )
     .map((c) => c.caseKey);
   if (!expiredKeys.length) return;
   const next = { cards: { ...kanbanData.cards } };

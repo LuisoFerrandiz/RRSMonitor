@@ -4,6 +4,31 @@
 
 ---
 
+## 2026-10-25 — Fix: tiempos límite manuales desaparecían del listado al expirar
+
+- **Bug**: `kanbanRemoveExpiredTimeLimitCard()` y `kanbanPurgeExpiredTimeLimitCards()`
+  (`data/viewer.html`) borraban por completo la tarjeta kanban de un tiempo límite
+  manual al expirar. Como ese tipo de tiempo límite no tiene otro almacén — la tarjeta
+  ES el único registro — borrarla también lo quitaba del listado de la pestaña Time
+  Limit (`renderTimeLimitsTable()` lee los manuales de `kanbanData.cards`), no solo de
+  la franja principal del kanban.
+- **Fix**: ambas funciones ahora excluyen `source === "manual"` de la purga. La franja
+  principal ya filtraba por `kanbanIsTimeLimitActive()`, así que ocultarlos ahí no
+  necesitaba borrado — el borrado era innecesario y era la causa del bug. Los tiempos
+  límite de RRS (no manuales) siguen purgándose igual que antes (su listado sale de
+  `state.json`, no de kanban, así que nunca les afectó). Solo `data/viewer.html`
+  tocado; sintaxis de los `<script>` inline verificada con `node -e` (parseo con
+  `new Function`), `npm run lint` sin cambios (no cubre `viewer.html`).
+- **Pendiente investigado, no corregido todavía**: `RRS_CREWCHANGES_URL` en `.env`
+  usa el slug `/crew_changes/{id_evento}/event`, pero el sitio real de RRS usa
+  `/crew_substitutions/{id_evento}/event` (confirmado con fetch directo: la URL
+  actual da 404, la correcta da 200 con la tabla esperada). El 404 se trata como
+  "sección vacía" silenciosamente (regla de diseño ya documentada), por eso Crew
+  Substitutions siempre muestra 0 filas sin error visible. Corrección pendiente de
+  permiso explícito del usuario para editar `.env`.
+
+---
+
 ## 2026-10-12 — Grafo de conocimiento (`/graphify . --update`) y commit de `graphify-out/`
 
 - **Actualizado el grafo tras Fase C + tests Trello**: `graphify . --update` re-extrajo
