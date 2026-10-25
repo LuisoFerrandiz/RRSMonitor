@@ -19,13 +19,17 @@
   `state.json`, no de kanban, así que nunca les afectó). Solo `data/viewer.html`
   tocado; sintaxis de los `<script>` inline verificada con `node -e` (parseo con
   `new Function`), `npm run lint` sin cambios (no cubre `viewer.html`).
-- **Pendiente investigado, no corregido todavía**: `RRS_CREWCHANGES_URL` en `.env`
-  usa el slug `/crew_changes/{id_evento}/event`, pero el sitio real de RRS usa
+- **Fix (resuelto, hecho por el usuario en `.env`)**: `RRS_CREWCHANGES_URL` usaba el
+  slug `/crew_changes/{id_evento}/event`, pero el sitio real de RRS usa
   `/crew_substitutions/{id_evento}/event` (confirmado con fetch directo: la URL
-  actual da 404, la correcta da 200 con la tabla esperada). El 404 se trata como
+  antigua daba 404, la correcta da 200 con la tabla esperada). El 404 se trataba como
   "sección vacía" silenciosamente (regla de diseño ya documentada), por eso Crew
-  Substitutions siempre muestra 0 filas sin error visible. Corrección pendiente de
-  permiso explícito del usuario para editar `.env`.
+  Substitutions siempre mostraba 0 filas sin error visible. Corregida la URL; en el
+  primer intento también se cambió por error el nombre de la variable
+  (`CREWCHANGES` → `crew_substitutions`), lo que habría desactivado la sección del
+  todo — detectado y corregido de vuelta a `CREWCHANGES=true`. `.env` no está
+  trackeado en este repo (pese a lo que decía una nota antigua en `CLAUDE.md`), así
+  que este cambio no tiene commit asociado.
 
 ---
 
