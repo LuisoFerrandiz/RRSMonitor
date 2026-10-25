@@ -4,6 +4,33 @@
 
 ---
 
+## 2026-10-25 — Historial de tiempos límite: ya no se borran, muestran alta/baja
+
+- **Pedido del usuario**: los tiempos límite que desaparecen de la pantalla
+  principal deberían seguir apareciendo en el listado de la pestaña Time Limit,
+  mostrando la hora en que se pusieron y la hora en que se eliminaron/expiraron.
+  Aplica tanto a los de RRS como a los manuales.
+- **`data/viewer.html`**: `kanbanRemoveExpiredTimeLimitCard()` y
+  `kanbanPurgeExpiredTimeLimitCards()` ya no borran la tarjeta — sellan
+  `expiredAt` (una vez, inmutable) cuando deja de estar activa. Para las de RRS,
+  la orfandad (`orphaned`/`orphanedAt`) ya la gestionaba `src/kanbanSync.js` sin
+  borrar nada (patrón ya existente); el borrado solo pasaba en el cliente. La
+  franja principal (`kanbanTimeLimitCardsList`) sigue ocultándolas igual, por
+  `kanbanIsTimeLimitActive`/`!orphaned` — nunca dependió de que se borraran.
+- **`renderTimeLimitsTable()`**: cambia de fuente — antes leía `stateData.timeLimitRows`
+  (solo las vigentes de RRS en el ciclo actual) + manuales de `kanbanData.cards`;
+  ahora lee TODAS las tarjetas `cardType:"time_limit"` de `kanbanData.cards`
+  (RRS + manuales, activas y expiradas/orfanadas), con dos columnas nuevas: SET AT
+  (`card.updatedAt`, inmutable desde que se crea la tarjeta) y REMOVED AT
+  (`card.orphanedAt || card.expiredAt`, vacío si sigue activa). Usa
+  `formatUserActivityDate()` ya existente para el formato.
+- Sin cambios en backend (`index.js`/`src/kanbanSync.js`/`src/api.js`) — todo en
+  `data/viewer.html`, mismo patrón que el resto de lógica de tiempos límite
+  manuales. Verificado: sintaxis de los `<script>` inline con `new Function`,
+  67/67 tests, 0 lint.
+
+---
+
 ## 2026-10-25 — Fix: pestaña Equip & Crew Substitution (Date↔Boat, link PDF, columna Competitor)
 
 - **Causa raíz (Date mostraba el Boat en crew substitutions)**: la página real de

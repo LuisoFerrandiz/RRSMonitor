@@ -3568,18 +3568,30 @@ function renderTimeLimitsTable() {
         { label: 'DATE', width: 'col-sm', sortKey: 'date' },
         { label: 'CLASS', width: 'col-lg', sortKey: 'boatClass' },
         { label: 'LIMIT TIME', width: 'col-sm', sortKey: 'limitTime' },
+        { label: 'SET AT', width: 'col-md', sortKey: 'setAt' },
+        { label: 'REMOVED AT', width: 'col-md', sortKey: 'removedAt' },
     ];
     tableHead.innerHTML = buildTableHead(cols, 'timelimits');
 
-    // RRS + manuales admin fusionados: los manuales viven como tarjetas kanban
-    // `cardType:"time_limit"`/`source:"manual"`, así que reciben el mismo
-    // tratamiento (cuenta atrás, purga al expirar) sin duplicar almacenamiento.
-    const manualRows = Object.values(kanbanData.cards || {})
-        .filter((c) => c && c.cardType === "time_limit" && c.source === "manual")
-        .map((c) => ({ date: c.date, boatClass: c.boatClass, limitTime: c.limitTime, manual: true, caseKey: c.caseKey }));
+    // RRS + manuales admin fusionados: viven como tarjetas kanban
+    // `cardType:"time_limit"` (manuales con `source:"manual"`). Ya no se
+    // borran al expirar/orfanar (solo se sella `expiredAt`/`orphanedAt`), así
+    // que este listado es el historial completo de alta y baja, no solo lo
+    // vigente ahora mismo.
+    const allRows = Object.values(kanbanData.cards || {})
+        .filter((c) => c && c.cardType === "time_limit")
+        .map((c) => ({
+            date: c.date,
+            boatClass: c.boatClass,
+            limitTime: c.limitTime,
+            manual: c.source === "manual",
+            caseKey: c.caseKey,
+            setAt: c.updatedAt || "",
+            removedAt: c.orphanedAt || c.expiredAt || "",
+        }));
 
     const search = searchInput?.value?.trim() || "";
-    let rows = [...(stateData.timeLimitRows || []), ...manualRows].filter((row) =>
+    let rows = allRows.filter((row) =>
         matchesSearch([row.date, row.boatClass, row.limitTime], search)
     );
 
@@ -3590,8 +3602,10 @@ function renderTimeLimitsTable() {
             date: (r) => r.date,
             boatClass: (r) => r.boatClass,
             limitTime: (r) => r.limitTime,
+            setAt: (r) => r.setAt,
+            removedAt: (r) => r.removedAt,
         },
-        { limitTime: 'time' }
+        { limitTime: 'time', setAt: 'date', removedAt: 'date' }
     );
 
     if (!rows.length) {
@@ -3617,6 +3631,8 @@ function renderTimeLimitsTable() {
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
             ${cell(row.boatClass, "px-4 py-3 text-sm font-medium")}
             <td class="px-4 py-3 text-sm font-semibold">${kanbanEscapeHtml(row.limitTime || "")}${manualBadge}${newBadge}</td>
+            ${cell(row.setAt ? formatUserActivityDate(row.setAt) : "", "px-4 py-3 text-sm whitespace-nowrap text-gray-500")}
+            ${cell(row.removedAt ? formatUserActivityDate(row.removedAt) : "", "px-4 py-3 text-sm whitespace-nowrap text-gray-500")}
         </tr>
     `;
     }).join('');
@@ -4350,40 +4366,39 @@ async function kanbanRemoveExpiredTimeLimitCard(caseKey) {
   if (kanbanExpiredRemovalDone.has(caseKey)) return;
   const card = kanbanData.cards?.[caseKey];
   if (!card) return;
-  // Los manuales no tienen otro almacén: si se borran aquí desaparecen también
-  // del listado de la pestaña Time Limit (que los lee de kanbanData.cards). El
-  // filtro de "activo" ya los oculta de la franja principal sin necesidad de
-  // borrarlos — solo se purgan de almacenamiento los no-manuales (RRS).
-  if (card.source === "manual") return;
+  // Ya no se borra la tarjeta: se sella `expiredAt` (una vez, inmutable) para
+  // que la pestaña Time Limit pueda seguir mostrándola con su historial de
+  // alta/baja. La franja principal ya la oculta por `kanbanIsTimeLimitActive`,
+  // así que borrar nunca hizo falta para eso — solo destruía el dato.
+  if (card.expiredAt) return;
   kanbanExpiredRemovalDone.add(caseKey);
-  const next = { cards: { ...kanbanData.cards } };
-  delete next.cards[caseKey];
+  const next = { cards: { ...kanbanData.cards, [caseKey]: { ...card, expiredAt: new Date().toISOString() } } };
   try {
     await kanbanSaveData(next);
   } catch (e) {
-    console.warn("[Kanban] No se pudo quitar time limit expirado:", e.message);
+    console.warn("[Kanban] No se pudo sellar expiración de time limit:", e.message);
     kanbanData = next;
   }
   renderKanbanTimeLimitStrip();
 }
 
 async function kanbanPurgeExpiredTimeLimitCards() {
-  // Los manuales no tienen otro almacén: purgarlos aquí los borra también del
-  // listado de la pestaña Time Limit (lee de kanbanData.cards). El filtro de
-  // "activo" ya los oculta de la franja principal sin necesidad de borrarlos.
-  const expiredKeys = kanbanCardsList()
-    .filter(
-      (c) =>
-        kanbanIsTimeLimitCard(c) &&
-        c.source !== "manual" &&
-        (c.orphaned || !kanbanIsTimeLimitActive(c))
-    )
-    .map((c) => c.caseKey);
-  if (!expiredKeys.length) return;
+  // Sella `expiredAt` (una vez) en vez de borrar: el listado de la pestaña
+  // Time Limit necesita conservar la tarjeta para mostrar cuándo se puso y
+  // cuándo dejó de estar activa. La franja principal ya filtra por
+  // `kanbanIsTimeLimitActive`, así que no depende de que la tarjeta se borre.
+  const toStamp = kanbanCardsList().filter(
+    (c) =>
+      kanbanIsTimeLimitCard(c) &&
+      !c.expiredAt &&
+      (c.orphaned || !kanbanIsTimeLimitActive(c))
+  );
+  if (!toStamp.length) return;
+  const now = new Date().toISOString();
   const next = { cards: { ...kanbanData.cards } };
-  for (const key of expiredKeys) {
-    delete next.cards[key];
-    kanbanExpiredRemovalDone.add(key);
+  for (const card of toStamp) {
+    next.cards[card.caseKey] = { ...card, expiredAt: now };
+    kanbanExpiredRemovalDone.add(card.caseKey);
   }
   try {
     await kanbanSaveData(next);

@@ -138,12 +138,21 @@ como glob) y reiniciar. `.env.example` es la plantilla.
   kanban normales (`cardType:"time_limit"`, `source:"manual"`, clave
   `tl:manual:<ts>` — nunca choca con la clave `tl:<date>||<boatClass>` de RRS, así
   que una manual y una de RRS con la misma fecha+clase **coexisten**). Reciben el
-  mismo tratamiento que las de RRS: cuenta atrás, purga automática al expirar
-  (`kanbanPurgeExpiredTimeLimitCards`) — por eso se valida fecha/hora parseables
-  antes de guardar. Editables y borrables solo por admin (botón Delete en el modal);
-  las de RRS no se borran a mano, solo expiran. `syncKanbanCards` no las toca (es
-  aditivo y nunca orfana tarjetas `time_limit`) — sin cambios en `index.js` ni
-  `src/api.js`, todo vive en `data/viewer.html`.
+  mismo tratamiento que las de RRS: cuenta atrás, y al expirar se sella
+  `expiredAt` (una vez, inmutable) en vez de borrarse — `kanbanPurgeExpiredTimeLimitCards`/
+  `kanbanRemoveExpiredTimeLimitCard` ya **no eliminan** la tarjeta, porque es el
+  único registro que existe para los manuales (si se borra, también desaparece del
+  listado de la pestaña Time Limit, no solo de la franja principal). La franja
+  principal (`kanbanTimeLimitCardsList`) sigue ocultándolas por `kanbanIsTimeLimitActive`
+  sin necesidad de borrado. La pestaña Time Limit muestra el historial completo
+  (`setAt` = `card.updatedAt`, `removedAt` = `card.orphanedAt || card.expiredAt`),
+  tanto para manuales como para las de RRS (que ya se orfanaban con `orphanedAt`
+  desde `src/kanbanSync.js`, nunca se borraban del backend). Por eso se valida
+  fecha/hora parseables antes de guardar un manual. Editables y borrables solo por
+  admin (botón Delete en el modal); las de RRS no se borran a mano, solo expiran/se
+  orfanan. `syncKanbanCards` sigue sin tocar los manuales (aditivo, nunca los
+  orfana) — sin cambios en `index.js` ni `src/api.js`, todo vive en
+  `data/viewer.html`.
 - **Backup**: un único `.html` (`GET /api/archive`, **requiere login**) = copia de `viewer.html` +
   `<script>window.__RRS_ARCHIVE__ = {...}</script>` (bundle sin filtrar por flags, usuarios **sin
   contraseñas**). Sirve como visor offline (pestañas de datos + kanban + Log + Schedule, todo en
