@@ -3803,15 +3803,13 @@ function renderCrewSubmissionsTable() {
     }));
     const allRows = [...crewRows, ...equipRows];
 
-    // La columna Competitor solo existe para crew substitutions (RRS la deriva
-    // de la celda "Boat" larga, ver extractRrsGenericTable) -- si ninguna fila
-    // actual trae dato, no tiene sentido mostrar la columna vacía.
-    const hasCompetitor = allRows.some((r) => r.competitor);
+    // BOAT muestra "boat - competitor" tal y como aparece en RRS (la celda larga
+    // de la tabla original) -- sin columna Competitor separada, así nunca hay que
+    // ocultarla por venir vacía (solo crew substitutions trae competitor).
     const cols = [
         { label: 'NO', width: 'col-xs', sortKey: 'no' },
-        { label: 'BOAT', width: 'col-sm', sortKey: 'boat' },
-        ...(hasCompetitor ? [{ label: 'COMPETITOR', width: 'col-lg', sortKey: 'competitor' }] : []),
         { label: 'DATE', width: 'col-sm', sortKey: 'date' },
+        { label: 'BOAT', width: 'col-xl', sortKey: 'boat' },
         { label: 'OLD', width: 'col-md', sortKey: 'previousCrew' },
         { label: 'NEW', width: 'col-md', sortKey: 'newCrew' },
         { label: 'STATUS', width: 'col-sm', sortKey: 'status' },
@@ -3856,15 +3854,12 @@ function renderCrewSubmissionsTable() {
         const dlName = row._kind === "equipment" ? `equipment-${row.no}` : `crew-${row.no}`;
         const downloadHtml = downloadLinkHtml(row.pdfUrl, dlName);
         const newBadge = newCrewNos.has(String(row.no || "").trim()) ? ROW_NEW_BADGE : "";
-        const competitorCell = hasCompetitor
-            ? cell(row.competitor, "px-4 py-3 text-sm", row.competitor)
-            : "";
+        const boatText = row.competitor ? `${row.boat} - ${row.competitor}` : row.boat;
         return `
         <tr class="hover:bg-gray-50">
             ${cell(row.no, "px-4 py-3 text-sm font-semibold text-center")}
-            ${cell(row.boat, "px-4 py-3 text-sm font-medium")}
-            ${competitorCell}
             ${cell(row.date, "px-4 py-3 text-sm whitespace-nowrap")}
+            ${cell(boatText, "px-4 py-3 text-sm font-medium", boatText)}
             ${cell(row.previousCrew, "px-4 py-3 text-sm", row.previousCrew)}
             ${cell(row.newCrew, "px-4 py-3 text-sm", row.newCrew)}
             <td class="px-4 py-3 text-sm">${escapeHtml(row.status || "-")}${downloadHtml}${newBadge}</td>

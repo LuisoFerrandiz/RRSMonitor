@@ -4,6 +4,23 @@
 
 ---
 
+## 2026-10-25 — Pestaña Equip & Crew Substitution: reordena columnas, fusiona Boat+Competitor, ajusta anchos
+
+- **Petición**: en la pestaña fusionada (`renderCrewSubmissionsTable`, `data/viewer.html`),
+  poner DATE como primera columna visible tras NO, que BOAT muestre "boat - competitor"
+  tal cual aparece en la página de RRS en vez de columna aparte, y revisar anchos de
+  todas las columnas.
+- **Cambio**: orden final NO → DATE → BOAT → OLD → NEW → STATUS. Se quita la columna
+  COMPETITOR (y su lógica `hasCompetitor` de ocultado condicional, ya no hace falta):
+  el valor se concatena en la celda BOAT como `${boat} - ${competitor}` solo cuando
+  `row.competitor` viene no vacío (equipment substitutions nunca lo trae). Anchos:
+  NO `col-xs`, DATE `col-sm`, BOAT `col-xl` (antes `col-sm`, necesita más espacio con
+  el competitor añadido), OLD/NEW `col-md` (sin cambio), STATUS `col-sm` (sin cambio).
+- **Verificación**: `node --check` vía `new Function()` sobre los bloques `<script>`
+  de `viewer.html` (no lo cubre ESLint), `npm test` (67/67) y `npm run lint` (0
+  warnings) — ninguno de los dos afectado por este archivo, solo para confirmar que
+  no se rompió nada del backend en la misma sesión.
+
 ## 2026-10-25 — Fix: tarjetas "Decided" no actualizaban decisionUrl/decisionText tras la primera decisión
 
 - **Bug**: `syncKanbanCards()` (`src/kanbanSync.js`) solo rellenaba
